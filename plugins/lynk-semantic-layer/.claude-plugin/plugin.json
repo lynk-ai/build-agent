@@ -1,0 +1,10 @@
+{
+  "name": "lynk-semantic-layer",
+  "description": "Build, edit, and validate the Lynk semantic layer in .lynk/. Ships two skills — lynk-build and lynk-validate — that cover entities, metrics, features, relationships, glossary, domains, and context files.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Lynk"
+  },
+  "homepage": "https://docs.getlynk.ai",
+  "keywords": ["lynk", "semantic-layer", "modeling", "validation"]
+}
