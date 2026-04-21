@@ -12,9 +12,12 @@ description: >
 
 # lynk-validate-semantics
 
-## Baseline
+## Guardrails
 
-Apply `../../references/principles.md` when judging correctness and quality.
+Apply these when judging correctness and quality:
+
+- **Quality over presence.** A value isn't good just because it's non-empty. Surface as **warnings**: missing or empty descriptions, descriptions that restate the field name (`country_code` → `country_code`), descriptions that are actually another column name (shifted-paste), placeholder text (`TODO`, `tbd`, `xxx`), pasted-in instruction fragments, one-word labels with no usage meaning.
+- **Engine-aware SQL.** See Step 5a — mandatory engine-compatibility pass against `.lynk/config.json`.
 
 ## Steps
 

@@ -1,6 +1,6 @@
 # Scaffold or update an entity from a warehouse table
 
-Follow `../../../references/principles.md` for all guardrails (descriptions, PKs, mirroring, destructive edits, credentials).
+Follow the Guardrails section in `../SKILL.md` for general rules (suggest-then-confirm, quality over presence, engine-aware SQL, scope to request).
 
 This flow spans two phases of `SKILL.md`:
 
@@ -9,6 +9,12 @@ This flow spans two phases of `SKILL.md`:
 - **§Update flow** splits the same way — read + diff before plan, write after confirm.
 
 The fetched schema and proposed YAML layout must appear in the plan the user confirms.
+
+## Credentials
+
+- `LYNK_API_KEY` and `LYNK_API_BASE_URL` live in `.env` at the workspace root.
+- Ensure `.env` is in `.gitignore` before writing anything to it.
+- Never echo the key in tool output or chat.
 
 ## Pre-flight (before plan & confirm)
 
@@ -36,17 +42,17 @@ If curl returns 401 / 403 / any auth error, the session JWT has expired — ask 
 Fetch the entity-YAML spec on demand from the docs (navigate from `https://docs.getlynk.ai/concepts/` to the entity file-type spec). Then write to `.lynk/{domain}/entities/{name}.yml` (default domain = `default`) with:
 
 - `key_source` = `source.id` (from the fetched response).
-- `keys` = user-confirmed PK, or `[]` if the user hasn't confirmed (per `principles.md` §Never invent).
-- One `type: field` feature per column; `data_type` mirrors the API `type` verbatim (per `principles.md` §Mirror, don't remap).
-- Descriptions only if the user supplied them (per `principles.md` §Never invent).
+- `keys` = user-confirmed PK, or `[]` if the user hasn't confirmed.
+- One `type: field` feature per column. **Mirror, don't remap:** copy the API `type` verbatim into `data_type`. Don't convert `string` to `datetime` for timestamp-looking columns unless the user asks.
+- Descriptions: follow the Guardrails in `../SKILL.md` (suggest 1–2 options + "provide your own").
 
 ## Update flow (source table changed)
 
 1. **Read** existing YAML (pre-plan).
 2. **Fetch** current schema per §Fetch (pre-plan).
 3. **Diff** by `field` name and include the diff in the plan:
-   - **Added** — new `type: field` features. Ask the user for descriptions before writing.
-   - **Removed** — impact-check per `../../../references/principles.md` §Destructive edits, then ask before deleting.
+   - **Added** — new `type: field` features. Follow the SKILL Guardrails for descriptions (suggest 1–2 options + "provide your own") before writing.
+   - **Removed** — ask the user before deleting. Dependent formulas, metrics, first_last features, relationships, or evaluations may reference the removed field; git is the safety net if something breaks.
    - **Kept** — don't touch.
 4. **After** the user confirms, write YAML (execute phase). Preserve existing feature order; append new features at the end.
 5. **Report**: N added, M removed, K impacts.

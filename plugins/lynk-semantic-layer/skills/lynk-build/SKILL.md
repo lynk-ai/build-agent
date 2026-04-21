@@ -16,9 +16,14 @@ description: >
 
 # lynk-build-semantics
 
-## Baseline
+## Guardrails
 
-Apply `../../references/principles.md` to every edit in `.lynk/`.
+Apply these to every edit in `.lynk/`:
+
+- **Suggest, then confirm.** When a required input is missing (descriptions, primary key, relationship cardinality, metric SQL), propose 1–2 concrete options based on the field name, related context, and docs — and offer "or provide your own." Don't write content until the user picks or supplies one. For primary keys, `keys: []` is an acceptable placeholder if the user is unsure.
+- **Quality over presence.** A value isn't good just because it's non-empty. Reject and re-ask for: missing or empty descriptions, descriptions that restate the field name (`country_code` → `country_code`), descriptions that are actually another column name (shifted-paste), placeholder text (`TODO`, `tbd`, `xxx`), pasted-in instruction fragments, one-word labels with no usage meaning.
+- **Engine-aware SQL.** Read `.lynk/config.json` for the `engine`. Every SQL expression you author (entity metrics, formula features, metric / first_last filters, relationship joins) must be valid for that engine. If `config.json` is missing or `engine` is unset, ask the user.
+- **Scope to the request.** Only create the sections the user asked for. "Add entity" means the entity YAML (with its requested features/metrics/first-last) — not unrelated knowledge files, relationships, glossary entries, or other domains.
 
 ## Steps
 
