@@ -26,8 +26,8 @@ Apply `../../references/principles.md` to every edit in `.lynk/`.
 
 The Lynk docs live at `https://docs.getlynk.ai`. Ground yourself before acting:
 
-- Fetch the docs index with `WebFetch https://docs.getlynk.ai/` (or `https://docs.getlynk.ai/llms.txt` if present) to see what pages are available.
-- Fetch `https://docs.getlynk.ai/concepts/` to refresh the Core Vocabulary — what Lynk primitives exist: Entity, Feature, Metric, Relationship, Glossary, Domain, Context (knowledge / task-instructions / clarification policy / output format).
+- Fetch the docs tree with `WebFetch https://docs.getlynk.ai/llms.txt` (fallback: `https://docs.getlynk.ai/`) to see what pages exist.
+- Fetch `https://docs.getlynk.ai/concepts/` — the Concepts README. Navigate from there to only the pages this task needs. Don't enumerate docs upfront.
 
 From the user's request, determine:
 - **Concept type** — which primitive are they asking about?
@@ -59,22 +59,15 @@ If the focused files aren't enough (e.g. a metric feature requires seeing the re
 
 ### 4. Read the relevant docs (only if needed)
 
-Consult the live Lynk docs via `WebFetch` — only fetch what you need:
-
-- Concept pages: `https://docs.getlynk.ai/concepts/<concept>` (entity, feature, metric, relationship, glossary, domain, context, data-modeling, evaluations, agent).
-- File-type specs: `https://docs.getlynk.ai/file-types/<type>` (entity, relationships, glossary, evaluations, task-instructions, clarification-policy, output-format, knowledge).
-- Guides: `https://docs.getlynk.ai/guides/<topic>` (adding entities, metrics, features, writing evals, task instructions, troubleshooting).
-
-Skip what you already know.
+Consult the live Lynk docs via `WebFetch` — navigate from the Concepts README (Step 1) to only the concept page, file-type spec, or guide this task needs. Skip what you already know.
 
 ### 5. Use user-provided files
 
 If the user attached or pasted CSV, text, or document files, use them as source data to derive field names, values, definitions, or examples for the semantic layer.
 
-### 6. Scaffold or update entities from a warehouse table
+### 6. Warehouse pre-flight (only when creating a new entity from a warehouse table, or when a source table was modified)
 
-When the user asks to create an entity from a warehouse table, or says a
-source table changed, follow `references/scaffold-from-warehouse.md`.
+Follow `references/scaffold-from-warehouse.md` §Pre-flight + §Fetch. Bring the fetched schema into the plan in Step 7.
 
 ### 7. Plan and confirm
 
@@ -82,7 +75,7 @@ Share a concise plan: which files you'll create or edit and the key decisions. W
 
 ### 8. Execute step by step
 
-Write or edit one file at a time. Show the user what was written before moving to the next.
+Write or edit one file at a time. Show the user what was written before moving to the next. For warehouse scaffolds, follow `references/scaffold-from-warehouse.md` §Write YAML.
 
 ## Output Format
 
