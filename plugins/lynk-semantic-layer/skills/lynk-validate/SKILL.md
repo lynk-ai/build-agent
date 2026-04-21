@@ -73,11 +73,12 @@ For multi-entity validation (seed + related), read `entities_relationships.yml` 
 
 ### 4. Read the relevant docs
 
-Check rules or best practices during validation by consulting these reference docs — only read what you actually need:
+Check rules or best practices during validation by consulting the live Lynk docs — only fetch what you actually need:
 
-```
-! find .claude/skills/docs -type f | sort
-```
+- Start with `WebFetch https://docs.getlynk.ai/` (or `https://docs.getlynk.ai/llms.txt` if present) to discover available pages.
+- Concept pages: `https://docs.getlynk.ai/concepts/<concept>` (entity, feature, metric, relationship, glossary, domain, context, data-modeling, evaluations, agent).
+- File-type specs: `https://docs.getlynk.ai/file-types/<type>` (entity, relationships, glossary, evaluations, task-instructions, clarification-policy, output-format, knowledge).
+- Guides: `https://docs.getlynk.ai/guides/<topic>`.
 
 ---
 

@@ -20,12 +20,10 @@ description: >
 
 ### 1. Identify the Lynk concept type
 
-The available docs:
-```
-! find .claude/skills/docs -type f | sort
-```
+The Lynk docs live at `https://docs.getlynk.ai`. Ground yourself before acting:
 
-Read `.claude/skills/docs/concepts/README.md` (the Core Vocabulary section) to ground yourself in what Lynk primitives exist: Entity, Feature, Metric, Relationship, Glossary, Domain, Context (knowledge / task-instructions / clarification policy / output format).
+- Fetch the docs index with `WebFetch https://docs.getlynk.ai/` (or `https://docs.getlynk.ai/llms.txt` if present) to see what pages are available.
+- Fetch `https://docs.getlynk.ai/concepts/` to refresh the Core Vocabulary — what Lynk primitives exist: Entity, Feature, Metric, Relationship, Glossary, Domain, Context (knowledge / task-instructions / clarification policy / output format).
 
 From the user's request, determine:
 - **Concept type** — which primitive are they asking about?
@@ -57,7 +55,13 @@ If the focused files aren't enough (e.g. a metric feature requires seeing the re
 
 ### 4. Read the relevant docs (only if needed)
 
-From the docs file tree injected in step 1, identify and read the files most relevant to the artifact type and task — guides, file-type references, or concept pages. Read only what you need; skip what you already know.
+Consult the live Lynk docs via `WebFetch` — only fetch what you need:
+
+- Concept pages: `https://docs.getlynk.ai/concepts/<concept>` (entity, feature, metric, relationship, glossary, domain, context, data-modeling, evaluations, agent).
+- File-type specs: `https://docs.getlynk.ai/file-types/<type>` (entity, relationships, glossary, evaluations, task-instructions, clarification-policy, output-format, knowledge).
+- Guides: `https://docs.getlynk.ai/guides/<topic>` (adding entities, metrics, features, writing evals, task instructions, troubleshooting).
+
+Skip what you already know.
 
 ### 5. Use user-provided files
 
