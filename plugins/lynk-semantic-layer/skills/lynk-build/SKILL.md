@@ -16,6 +16,10 @@ description: >
 
 # lynk-build-semantics
 
+## Baseline
+
+Apply `../../references/principles.md` to every edit in `.lynk/`.
+
 ## Steps
 
 ### 1. Identify the Lynk concept type
@@ -67,11 +71,16 @@ Skip what you already know.
 
 If the user attached or pasted CSV, text, or document files, use them as source data to derive field names, values, definitions, or examples for the semantic layer.
 
-### 6. Plan and confirm
+### 6. Scaffold or update entities from a warehouse table
+
+When the user asks to create an entity from a warehouse table, or says a
+source table changed, follow `references/scaffold-from-warehouse.md`.
+
+### 7. Plan and confirm
 
 Share a concise plan: which files you'll create or edit and the key decisions. Wait for the user to confirm before making any changes.
 
-### 7. Execute step by step
+### 8. Execute step by step
 
 Write or edit one file at a time. Show the user what was written before moving to the next.
 

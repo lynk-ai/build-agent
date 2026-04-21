@@ -12,6 +12,10 @@ description: >
 
 # lynk-validate-semantics
 
+## Baseline
+
+Apply `../../references/principles.md` when judging correctness and quality.
+
 ## Steps
 
 ### 1. Determine what to validate
