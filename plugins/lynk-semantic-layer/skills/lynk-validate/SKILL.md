@@ -90,6 +90,12 @@ Apply the checklist that matches the target type. For each issue found, record: 
 
 per file you validate, create a checklist of potential issues to look for based on the relevant docs files.
 
+#### 5a. Engine-compatibility pass (mandatory)
+
+Read `.lynk/config.json` for the `engine`; if missing or unset, ask the user. Scan every SQL site — entity `metrics[].sql`, `formula.sql`, `first_last.filters[].sql`, relationship `joins[].sql`, and every evaluation `expected_output` — and flag any construct the target engine doesn't support. Apply your dialect knowledge (common flags across engines: `QUALIFY`, `IFF`, `TRY_CAST`, `DATEADD/DATEDIFF`, `SAFE_*`, `LATERAL FLATTEN`, backtick identifiers, `::` casts, `TOP n`, `INTERVAL` string forms, date-literal shape, multi-resultset `expected_output`). Engine issues inside entity files are **errors**; inside `expected_output` they're **warnings** unless the runner executes the SQL — ask if unclear.
+
+Then proceed with the semantic checks below.
+
 ---
 
 ### 6. Produce the validation report
