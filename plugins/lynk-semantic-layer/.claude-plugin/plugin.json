@@ -6,5 +6,15 @@
     "name": "Lynk"
   },
   "homepage": "https://docs.getlynk.ai",
-  "keywords": ["lynk", "semantic-layer", "modeling", "validation"]
+  "keywords": ["lynk", "semantic-layer", "modeling", "validation"],
+  "skills": [
+    {
+      "name": "lynk-build",
+      "path": "skills/lynk-build/SKILL.md"
+    },
+    {
+      "name": "lynk-validate",
+      "path": "skills/lynk-validate/SKILL.md"
+    }
+  ]
 }
