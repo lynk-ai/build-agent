@@ -10,7 +10,11 @@
   "plugins": [
     {
       "name": "lynk-semantic-layer",
-      "source": "./lynk-semantic-layer",
+      "source": {
+        "source": "github",
+        "repo": "lynk-ai/build-agent",
+        "path": "plugins/lynk-semantic-layer"
+      },
       "description": "Build, edit, and validate a Lynk semantic layer in .lynk/ — entities, metrics, features, relationships, glossary, domains, and context files.",
       "category": "semantic-layer",
       "keywords": ["lynk", "semantic-layer", "modeling", "validation", "data"]
