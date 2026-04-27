@@ -18,12 +18,11 @@ description: >
 
 ## Steps
 
-### 1. Identify the Lynk concept type
+### 1. Read the basic Lynk docs to ground yourself
 
-The Lynk docs live at `https://docs.getlynk.ai`. Ground yourself before acting:
+- Fetch `https://docs.getlynk.ai/concepts.md` to understand the Core Vocabulary and Semantic Layer structure — what Lynk primitives exist: Entity, Feature, Metric, Relationship, Glossary, Domain, Context (knowledge / task-instructions / clarification policy / output format).
 
-- Fetch the docs index with `WebFetch https://docs.getlynk.ai/` (or `https://docs.getlynk.ai/llms.txt` if present) to see what pages are available.
-- Fetch `https://docs.getlynk.ai/concepts/` to refresh the Core Vocabulary — what Lynk primitives exist: Entity, Feature, Metric, Relationship, Glossary, Domain, Context (knowledge / task-instructions / clarification policy / output format).
+### 2. Understand the user's request
 
 From the user's request, determine:
 - **Concept type** — which primitive are they asking about?
@@ -31,7 +30,7 @@ From the user's request, determine:
 - **Domain** — default to `default` unless stated otherwise
 - Whether the user provided source files (CSV, text, docs) to inform the content
 
-### 2. Locate the artifact in `.lynk/`
+### 3. Locate the artifact in `.lynk/`
 
 The current semantic layer:
 ```
@@ -40,28 +39,25 @@ The current semantic layer:
 
 Identify which file(s) own the artifact the user mentioned by scanning the actual filenames and folder structure.
 
-### 3. Read only the files that are relevant
+### 4. Read the relevant docs
 
+**Always fetch the docs index** with `https://docs.getlynk.ai/llms.txt` to see what pages are available. This is the index of all Lynk docs that you can fetch. It also gives you a sense of how the docs are structured, so you can make informed decisions about which files to read for the most relevant context.
+
+Consult the live Lynk docs via `WebFetch` — only fetch what you need.
 Read the narrowest set of files that gives you enough context to act:
 
-- **Entity** (or its features / metrics): the entity's YAML file first, then its associated knowledge and task-instructions files
-- **Metric**: metrics live inside entity YAMLs — find which entity owns it, then read that entity's YAML and context files
-- **Relationship**: the relationships file, plus the two entity YAMLs if you need field context
-- **Glossary**: only the matching glossary file
-- **Clarification policy / output format**: only that single file
-- **Domain knowledge / task instructions**: only the domain-level files that match the topic
+#### Entity
+Users can ask to build or edit an entity, or ask about an entity's features, metrics, relationships, knowledge, task instructions, clarification policy, or output format. In all cases, the core files to read are:
+- the entity's YAML file
+- the entity's knowledge files
+- the entity's task-instructions files
+- the domain-level files for that entity (knowledge, task instructions, clarification policy, output format)
 
-If the focused files aren't enough (e.g. a metric feature requires seeing the related entity, or a join issue spans two entities), expand to those related files.
+In case the user request is referring multiple entities, read all of them, but avoid reading unrelated entities.
 
-### 4. Read the relevant docs (only if needed)
-
-Consult the live Lynk docs via `WebFetch` — only fetch what you need:
-
-- Concept pages: `https://docs.getlynk.ai/concepts/<concept>` (entity, feature, metric, relationship, glossary, domain, context, data-modeling, evaluations, agent).
-- File-type specs: `https://docs.getlynk.ai/file-types/<type>` (entity, relationships, glossary, evaluations, task-instructions, clarification-policy, output-format, knowledge).
-- Guides: `https://docs.getlynk.ai/guides/<topic>` (adding entities, metrics, features, writing evals, task instructions, troubleshooting).
-
-Skip what you already know.
+#### Non Entity
+- If the user does not ask about an entity or its sub-primitives (metrics, features, relationships or context), and it is clear that they are asking about (might be agent behavior, a glossary term, or a domain-level context file), then read only the relevant file(s). 
+If it is not clear, check with the user before moving forward.
 
 ### 5. Use user-provided files
 
@@ -79,3 +75,8 @@ Write or edit one file at a time. Show the user what was written before moving t
 
 Always respond clearly with the recommendations as bullet points, and use code blocks to show any file content.
 Give references from the docs to justify your decisions. If you make assumptions, state them explicitly.
+
+## Best Practices
+- Always look for conflicts and ambiguities in the context files. Always flag them to the user and ask for clarification before proceeding.
+- Never change files before getting user confirmation on the plan. Always be transparent about what you're changing and why.
+- When you add or edit the context files, make sure you add context to one place only. For example, if you add instructions about how to filter an entity - add it to the entity's task instructions, not the knowledge file. If you add a definition of a metric, add it to the entity YAML, not the knowledge file. Avoid adding the same context to multiple places.
