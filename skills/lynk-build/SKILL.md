@@ -18,60 +18,79 @@ description: >
 
 ## Steps
 
-### 1. Identify the Lynk concept type
+### 1. Detect the customer's SQL engine
 
-The Lynk docs live at `https://docs.getlynk.ai`. Ground yourself before acting:
+The SQL engine is:
+```
+! bash skills/lynk-build/references/get_engine.sh
+```
+Keep it in mind throughout all subsequent steps — it informs how you write SQL expressions (e.g. date functions, quoting style, dialect-specific syntax).
 
-- Fetch the docs index with `WebFetch https://docs.getlynk.ai/` (or `https://docs.getlynk.ai/llms.txt` if present) to see what pages are available.
+#### If the engine is not detected, ask the user to provide it
+- If the engine is `unknown`, ask the user: **"Which SQL engine are you using? (e.g. Snowflake, BigQuery, Redshift, DuckDB, etc.)"**
+- Once the user answers, make sure the answer makes sense and its a known engine, then write or update `.lynk/config.json` with the value:
+  ```json
+  {
+    "engine": "<user-provided engine>"
+  }
+  ```
+  If the file already exists with other keys, merge — do not overwrite the whole file.
+
+### 2. Ground yourself in the docs
+
+Learn about Lynk's Semantic Graph concepts:
 - Fetch `https://docs.getlynk.ai/concepts/` to refresh the Core Vocabulary — what Lynk primitives exist: Entity, Feature, Metric, Relationship, Glossary, Domain, Context (knowledge / task-instructions / clarification policy / output format).
 
-From the user's request, determine:
-- **Concept type** — which primitive are they asking about?
-- **Artifact name** — which specific one (e.g. "player entity", "points_per_game metric", "NBA glossary")?
-- **Domain** — default to `default` unless stated otherwise
-- Whether the user provided source files (CSV, text, docs) to inform the content
+### 3. Ground yourself in the user's existing semantic graph located in `.lynk/`
 
-### 2. Locate the artifact in `.lynk/`
-
-The current semantic layer:
+The current semantic graph files:
 ```
 ! find ./.lynk -type f | sort
 ```
 
-Identify which file(s) own the artifact the user mentioned by scanning the actual filenames and folder structure.
+### 4. Connect the user's request to the relevant concepts and files
+From the user's request, determine:
+- **Concept type** — which primitive are they asking about? An Entity? A Metric? A Relationship? Glossary? Domain? Context (knowledge, task instructions, clarification policy, output format)?
+- **Artifact name** — which specific one, based on the files existing in `.lynk/`?
+- **Domain** — default to `default` unless stated otherwise
 
-### 3. Read only the files that are relevant
+### 5. Read the relevant docs
+
+- Fetch the docs index at `https://docs.getlynk.ai/llms.txt` to see what pages are available.
+- Navigate to the relevant page(s) based on the concept type and artifact name you identified in step 4 and read the relevant docs carefully. Only fetch what you need accoreding to the infornation you gathered so far.
+
+### 6. Read the relevant semantic graph files
+
+Identify which file(s) own the artifact the user mentioned by scanning the actual filenames and folder structure.
+If the user is asking about metrics or features, find which entity owns them. If they're asking about a relationship, find which entities are involved.
+
+- **Domain**: always read the domain-level knowledge files and task instructions based on the domain you identified. If no domain was identified, default to `default` domain files.
 
 Read the narrowest set of files that gives you enough context to act:
-
-- **Entity** (or its features / metrics): the entity's YAML file first, then its associated knowledge and task-instructions files
+- **Entity**: (or its features / metrics): the entity's YAML file, and its associated knowledge and task-instructions files
 - **Metric**: metrics live inside entity YAMLs — find which entity owns it, then read that entity's YAML and context files
 - **Relationship**: the relationships file, plus the two entity YAMLs if you need field context
 - **Glossary**: only the matching glossary file
-- **Clarification policy / output format**: only that single file
-- **Domain knowledge / task instructions**: only the domain-level files that match the topic
+- **Clarification policy**: only the clarification policy file
+- **Output format**: only the output format file
 
 If the focused files aren't enough (e.g. a metric feature requires seeing the related entity, or a join issue spans two entities), expand to those related files.
 
-### 4. Read the relevant docs (only if needed)
-
-Consult the live Lynk docs via `WebFetch` — only fetch what you need:
-
-- Concept pages: `https://docs.getlynk.ai/concepts/<concept>` (entity, feature, metric, relationship, glossary, domain, context, data-modeling, evaluations, agent).
-- File-type specs: `https://docs.getlynk.ai/file-types/<type>` (entity, relationships, glossary, evaluations, task-instructions, clarification-policy, output-format, knowledge).
-- Guides: `https://docs.getlynk.ai/guides/<topic>` (adding entities, metrics, features, writing evals, task instructions, troubleshooting).
-
-Skip what you already know.
-
-### 5. Use user-provided files
+### 7. Use user-provided files
 
 If the user attached or pasted CSV, text, or document files, use them as source data to derive field names, values, definitions, or examples for the semantic layer.
 
-### 6. Plan and confirm
+### 8. Plan and confirm
+
+Create an action plan based on all the information you've gathered:
+- Which files will you create or edit?
+- What are the key decisions you made based on the docs and the user's existing semantic graph?
+
+In case there is any missing information that is critical to the plan, ask the user to provide it before you start writing or editing files.
 
 Share a concise plan: which files you'll create or edit and the key decisions. Wait for the user to confirm before making any changes.
 
-### 7. Execute step by step
+### 9. Execute step by step
 
 Write or edit one file at a time. Show the user what was written before moving to the next.
 
