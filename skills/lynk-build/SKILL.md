@@ -6,12 +6,12 @@ description: >
   output format, and domains in `.lynk/`.
 
   Use this skill whenever the user asks to add, create, edit, update, define, review,
-  improve, enhance, or optimize any semantic layer artifact. Trigger even when "semantic
+  improve, enhance, fix or optimize any semantic layer artifact. Trigger even when "semantic
   layer" isn't mentioned — phrases like "add an entity", "edit a metric", "update the
   glossary", "write task instructions", "change the clarification policy", "add a feature
-  to X", "model this table", "help me define Y in Lynk", "improve the knowledge file",
+  to X", "model this table", "help me define Y", "improve the knowledge file",
   "enhance the player entity", "optimize the glossary", or any request to improve/fix a
-  file inside `.lynk/` all mean this skill should run.
+  file in the `.lynk/` directory mean this skill should run. Use it also when the user complains about the ask agent not working properly — the issue might be in the semantic layer and this skill can fix it.
 ---
 
 # lynk-build-semantics
