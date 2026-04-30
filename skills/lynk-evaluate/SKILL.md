@@ -1,22 +1,22 @@
 ---
-name: lynk-validate
+name: lynk-evaluate
 description: >
-  Validate the Lynk semantic layer in `.lynk/` for correctness, completeness, and consistency.
+  Evaluate the Lynk semantic layer in `.lynk/` for correctness, completeness, and consistency.
 
-  Use this skill whenever the user asks to validate, check, audit, review, verify, inspect,
-  or diagnose the semantic layer or any part of it. Trigger on phrases like "validate the
+  Use this skill whenever the user asks to evaluate, check, audit, review, verify, inspect,
+  or diagnose the semantic layer or any part of it. Trigger on phrases like "evaluate the
   semantics", "check the entity", "audit the glossary", "review the evaluations", "is this
-  correct", "validate player", "check my metrics", "verify the relationships", "is the semantic
+  correct", "evaluate player", "check my metrics", "verify the relationships", "is the semantic
   layer well structured", or any request to assess quality of files inside `.lynk/`.
 ---
 
-# lynk-validate-semantics
+# lynk-evaluate-semantics
 
 ## Steps
 
-### 1. Determine what to validate
+### 1. Determine what to evaluate
 
-If the user has **not** specified what to validate, use the `AskUserQuestion` tool to ask them. Before presenting options, check git history to surface recently edited artifacts:
+If the user has **not** specified what to evaluate, use the `AskUserQuestion` tool to ask them. Before presenting options, check git history to surface recently edited artifacts:
 
 ```
 ! git log --oneline --diff-filter=M --name-only -20 -- .lynk/ | head -40

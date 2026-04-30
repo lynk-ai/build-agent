@@ -18,28 +18,11 @@ description: >
 
 ## Steps
 
-### 1. Detect the customer's SQL engine
-
-The SQL engine is:
-```
-! bash skills/lynk-build/references/get_engine.sh
-```
-Keep it in mind throughout all subsequent steps — it informs how you write SQL expressions (e.g. date functions, quoting style, dialect-specific syntax).
-
-#### If the engine is not detected, ask the user to provide it
-- If the engine is `unknown`, ask the user: **"Which SQL engine are you using? (e.g. Snowflake, BigQuery, Redshift, DuckDB, etc.)"**
-- Once the user answers, make sure the answer makes sense and its a known engine, then write or update `.lynk/config.json` with the value:
-  ```json
-  {
-    "engine": "<user-provided engine>"
-  }
-  ```
-  If the file already exists with other keys, merge — do not overwrite the whole file.
 
 ### 2. Ground yourself in the docs
 
 Learn about Lynk's Semantic Graph concepts:
-- Fetch `https://docs.getlynk.ai/concepts/` to refresh the Core Vocabulary — what Lynk primitives exist: Entity, Feature, Metric, Relationship, Glossary, Domain, Context (knowledge / task-instructions / clarification policy / output format).
+- Always Fetch `https://docs.getlynk.ai/concepts/` to get the latest concepts documentation. Read it carefully.
 
 ### 3. Ground yourself in the user's existing semantic graph located in `.lynk/`
 
@@ -56,8 +39,8 @@ From the user's request, determine:
 
 ### 5. Read the relevant docs
 
-- Fetch the docs index at `https://docs.getlynk.ai/llms.txt` to see what pages are available.
-- Navigate to the relevant page(s) based on the concept type and artifact name you identified in step 4 and read the relevant docs carefully. Only fetch what you need accoreding to the infornation you gathered so far.
+- Wlways fetch the docs index at `https://docs.getlynk.ai/llms.txt` to see what pages are available.
+- Navigate to the relevant page(s) based on the concept type and artifact name you identified in step 4 and read the relevant docs carefully.
 
 ### 6. Read the relevant semantic graph files
 
@@ -80,7 +63,7 @@ If the focused files aren't enough (e.g. a metric feature requires seeing the re
 
 If the user attached or pasted CSV, text, or document files, use them as source data to derive field names, values, definitions, or examples for the semantic layer.
 
-### 8. Plan and confirm
+### 8. Plan
 
 Create an action plan based on all the information you've gathered:
 - Which files will you create or edit?
@@ -88,9 +71,13 @@ Create an action plan based on all the information you've gathered:
 
 In case there is any missing information that is critical to the plan, ask the user to provide it before you start writing or editing files.
 
+- In case you need to write SQL expressions, detect the SQL engine: @references/get-sql-engine.md
+
+### 9. Always confirm with the user before executing the plan
+
 Share a concise plan: which files you'll create or edit and the key decisions. Wait for the user to confirm before making any changes.
 
-### 9. Execute step by step
+### 10. Execute step by step
 
 Write or edit one file at a time. Show the user what was written before moving to the next.
 
