@@ -11,7 +11,7 @@ Our goal is to create and test skills for building and validating lynk semantic 
 
 ## Marketplace layout
 - Public skills are distributed as a Claude Code plugin marketplace defined in `.claude-plugin/marketplace.json`.
-- The plugin `lynk-semantic-layer` (under `plugins/lynk-semantic-layer/`) ships two skills: `lynk-build` and `lynk-validate`.
+- The plugin `lynk-semantic-layer` (under `plugins/lynk-semantic-layer/`) ships two skills: `lynk-build` and `lynk-evaluate`.
 - Register the marketplace locally with `/plugin marketplace add .` and install with `/plugin install lynk-semantic-layer@lynk`.
 - `.claude/skills/skill-creator/` is internal dev tooling for authoring skills in this repo and is **not** part of the marketplace. 
 

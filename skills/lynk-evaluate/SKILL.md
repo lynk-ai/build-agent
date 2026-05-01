@@ -1,0 +1,147 @@
+---
+name: lynk-evaluate
+description: >
+  Evaluate the Lynk semantic layer in `.lynk/` — judge whether it is good enough
+  for the AI agent to use, not just whether the YAML parses. Checks description
+  quality, cross-file consistency, content placement, reference integrity, and
+  SQL dialect compatibility against the user's warehouse engine.
+
+  Use this skill whenever the user asks to evaluate, audit, review, assess, or
+  diagnose the semantic layer or any part of it. Trigger on phrases like
+  "evaluate the semantics", "is this good enough for the agent", "audit my
+  entities", "check description quality", "any contradictions in my context",
+  "will my SQL run on <engine>", "review the glossary", "check my evaluations
+  against instructions", "evaluate player", "is the semantic layer well
+  structured", or any request to assess the quality of files inside `.lynk/`.
+---
+
+# lynk-evaluate-semantics
+
+## Steps
+
+### 1. Determine what to evaluate
+
+If the user has **not** specified what to evaluate, use the `AskUserQuestion` tool to ask them. Before presenting options, check git history to surface recently edited artifacts:
+
+```
+! git log --oneline --diff-filter=M --name-only -20 -- .lynk/ | head -40
+```
+
+Use that output to identify the last 3 distinct `.lynk/` artifacts that were modified (entity YAML, knowledge file, task instructions, glossary, evaluations, etc.). Strip the domain path and file extension to present a clean artifact name (e.g., `player entity`, `nba_glossary`, `evaluations`).
+
+Present these options to the user:
+- **Option 1** — Last edited artifact (e.g., `player entity`)
+- **Option 2** — Second-to-last edited artifact
+- **Option 3** — Third-to-last edited artifact
+- **Option 4** — Evaluate the entire semantic graph end-to-end
+
+If git history doesn't yield 3 distinct artifacts, fill remaining slots with sensible defaults (e.g., the glossary, evaluations, or the largest entity in the domain).
+
+Once the user selects, continue to Step 2 with the chosen target.
+
+---
+
+### 2. Locate the target files
+
+Scan the semantic layer file tree:
+
+```
+! find ./.lynk -type f | sort
+```
+
+Based on the user's selection, identify the relevant files:
+
+| Evaluation target | Files to read |
+|---|---|
+| Specific entity | Entity YAML + its knowledge file + its task instructions file + domain knowledge + domain task instructions + glossary |
+| Entity + related entities | Same as above, but for the seed entity AND every entity it is related to (via `entities_relationships.yml`) |
+| Glossary | The glossary file only |
+| Full semantic graph | All entity YAMLs + all knowledge/task instruction files + glossary + domain context + evaluations + relationships |
+| Evaluations | `evaluations.yml` + all entity YAMLs (to verify references) |
+
+If the user asked about a **specific metric, feature, or relationship** on an entity, still evaluate the full entity context — but lead your response with the specific item they asked about.
+
+---
+
+### 3. Read the target files
+
+Read only the files identified in Step 2. For entity evaluation, read in this order:
+1. Entity YAML
+2. Entity knowledge file
+3. Entity task instructions file
+4. Domain knowledge + domain task instructions
+5. Glossary
+
+For multi-entity evaluation (seed + related), read `entities_relationships.yml` first to determine the related entity set, then read each entity's files.
+
+---
+
+### 4. Read the relevant docs and detect the SQL engine
+
+- **Always fetch `https://docs.getlynk.ai/llms.txt` first** to see the doc tree — the "right thing in the right file" check in Step 5 depends on knowing what file-type specs exist. Then `WebFetch` only the `concepts/<concept>` and `file-types/<type>` pages relevant to the targets in Step 2.
+- **Detect the engine.** Read `.lynk/config.json` and look for an `engine`, `dialect`, or `warehouse` field. Common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`. If the field is missing, empty, or the file doesn't exist, ask the user via `AskUserQuestion` — do not guess. Record the dialect; every SQL check in Step 5 keys off it.
+
+---
+
+### 5. Evaluate
+
+For each finding, record: **severity** (error / warning / needs-client-input / suggestion), **location** (file + field or feature name), **what's wrong**, **how to fix it**.
+
+Apply these check groups against the target files:
+
+- **Description quality** — flag tautological descriptions (description equals the field name), shifted-paste (description matches a *different* field's name), placeholder text (TODO, tbd, xxx, FIXME, ???), pasted instruction fragments, and empty descriptions on business-critical elements (metrics, features used in evaluations, entities).
+- **Right thing in the right file** — verify each artifact's content matches its file-type spec from the docs. E.g., metric definitions belong in the entity YAML (not knowledge); clarification rules belong in `clarification-policy` (not task instructions); agent-tone rules belong in `output-format`.
+- **Cross-file consistency** — glossary ↔ metric SQL, glossary ↔ knowledge, glossary ↔ task instructions; entity knowledge ↔ entity YAML; task instructions ↔ examples & evaluations; examples & evaluations ↔ context. Flag contradictions, not style differences.
+- **Reference integrity** — every metric, feature, entity, or relationship referenced in markdown, entity examples, or `evaluations.yml` must resolve to a definition in some YAML.
+- **YAML & SQL structure** — required fields present, `{}` placeholders in metric SQL, `METRIC()` wrapping where required, no aggregates inside formula features, no circular formula dependencies, no duplicate feature / metric / relationship keys.
+- **Missing context** — if knowledge / glossary / task instructions describe an aggregation ("total X", "sum of X", "count of X", "average X", "X per Y") and no matching metric exists, flag it.
+- **Engine compatibility** — for the engine detected in Step 4, scan every SQL snippet (metric SQL, formula SQL, `first_last` filters, relationship joins, entity examples, evaluation `expected_output`) for dialect-incompatible constructs. Examples: `QUALIFY` and `IFF` are Snowflake-only; `SAFE_*` and backtick identifiers are BigQuery-only; `DATEADD/DATEDIFF` syntax differs across BigQuery / Snowflake / Postgres.
+
+When examples and task instructions disagree on the *intended* behavior, mark it **needs-client-input** rather than picking a side.
+
+---
+
+### 6. Produce the evaluation report
+
+**If the user asked about a specific metric / feature / relationship:** lead with a focused section on that item — its evaluation result, issues, and suggested fixes — before the broader entity report.
+
+**Report structure:**
+
+```
+## Evaluation Report — [Target Name] (engine: [dialect])
+
+### Summary
+[1-2 sentences: overall health, number of issues by severity, dialect applied]
+
+### Errors (must fix)
+- **[Location]**: [What's wrong] → [How to fix]
+
+### Warnings (should fix)
+- **[Location]**: [What's wrong] → [How to fix]
+
+### Needs client input
+- **[Location]**: [Conflict between instructions and examples / unresolvable intent] → [What you need from the user]
+
+### Suggestions (nice to have)
+- **[Location]**: [What could be improved] → [Suggested improvement]
+
+### What looks good
+- [Bullet list of things that are well-modeled — be specific]
+```
+
+If no issues are found in a severity tier, omit that section entirely.
+
+For **full graph evaluation**, group findings by entity/file rather than by severity tier, so the user can focus on one entity at a time.
+
+For **evaluations evaluation**, group findings by evaluation name and add a coverage summary at the top showing entity distribution.
+
+---
+
+## Output Format
+
+- Always state the detected engine on the summary line so the user knows which dialect rules were applied.
+- Use code blocks when quoting YAML field names, feature names, or SQL snippets.
+- Reference exact file paths so the user can navigate directly.
+- Be specific about locations — say `player.yml → feature: career_points → metric: nonexistent_metric` not just "a feature has an issue".
+- Lead with the most important findings; don't bury critical errors at the bottom.
+- If you find issues in the files, offer to fix them — but only after completing the full report.
