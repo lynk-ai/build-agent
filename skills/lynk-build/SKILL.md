@@ -63,7 +63,7 @@ If it is not clear, check with the user before moving forward.
 
 When the user wants to add or extend an entity, you need the source table's actual columns to ground the model in real data. Two ways to get them:
 
-- **From the Lynk catalog (preferred)** — delegate to `lynk-sources` to call `GET /api/data-catalog/sources/<key_source>`. The response carries `source.columns[]` with `name`, `type`, `dataType`. If the source isn't yet catalogued, lynk-sources can list available schemas and (with user confirmation) add the new one via `PUT /api/integrations/data/schemas`.
+- **From the Lynk catalog (preferred)** — delegate to `lynk-sources` to fetch the source's columns. If the source isn't yet catalogued, lynk-sources can register it first. See the lynk-sources skill for the action table and endpoint detail.
 - **From user-provided files** — if the user attached or pasted CSV, text, or document files, use those instead.
 
 If the user says "I added fields to X" or "columns of X changed", delegate to `lynk-sources` to sync, refetch fields, and reconcile any field features whose source columns no longer exist.

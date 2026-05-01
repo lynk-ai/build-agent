@@ -94,8 +94,8 @@ If the response shape is unexpected, show the raw body and ask how to proceed in
 
 When the user said "I added/updated fields to X", "columns changed", or asked to clean up after a dropped column:
 
-1. **Run sync first** (`POST /api/data-catalog/sources/sync`) so the catalog reflects the latest source state. If `body.fieldsDeleted > 0` you definitely need to reconcile; if 0 you may still want to surface added fields.
-2. **Fetch current columns** via `GET /api/data-catalog/sources/<id>`.
+1. **Run sync first** (Step 3 sync action) so the catalog reflects the latest source state. If `body.fieldsDeleted > 0` you definitely need to reconcile; if 0 you may still want to surface added fields.
+2. **Fetch current columns** (Step 3 fetch-fields action) for the affected source.
 3. **Find affected entity YAMLs** — entities sourcing from this table:
    ```
    ! grep -lrE "key_source:\s*<id>|source:\s*<id>" .lynk/
