@@ -1,18 +1,21 @@
 # REST API
 
-The Lynk REST API provides HTTP endpoints for managing your semantic layer and data catalog programmatically — running validity checks, registering schemas, syncing source metadata, and inspecting tables and columns without using the Lynk UI.
+Internal reference for the Lynk REST API. Endpoints used by `lynk-sources`, `lynk-validate`, and `scripts/lynk_api.py`.
 
-{% hint style="warning" %}
-This reference is a work in progress. Endpoints, request/response shapes, and field semantics may change before general availability. Verify behavior against your tenant before depending on it in automation, and reach out to your Lynk account team for changes you spot.
-{% endhint %}
+This file is intentionally not published on `docs.getlynk.ai` — the REST API is a skill-internal contract, not a user-facing surface. Keep it that way: customer-tenant identifiers, internal-only endpoints, and dev URLs all live here, not in public docs.
+
+This reference is a work in progress. Endpoints, request/response shapes, and field semantics may change. Verify behavior against your tenant before depending on it in automation, and reach out to the platform team for changes you spot.
 
 ---
 
 ## Base URL
 
-```
-https://app.getlynk.ai/api
-```
+| Environment | Base URL | When |
+|---|---|---|
+| Production | `https://app.getlynk.ai/api` | Default — used unless the user says "on dev" |
+| Development | `https://dev.app.getlynk.ai/api` | When the user says "on dev" or `LYNK_ENV=dev` is set |
+
+The `scripts/lynk_api.py` script picks the URL automatically: prod by default, dev when `--env dev` is passed or `LYNK_ENV=dev` is in `.env`. Skills should pass `--env dev` only when the user explicitly asks for dev — never default to it.
 
 All paths in this reference are relative to the base URL.
 
