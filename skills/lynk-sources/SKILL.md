@@ -35,11 +35,11 @@ Classify the user's request to one of these actions:
 | "sync sources", "the columns changed", "I added fields to X" | Sync sources | `POST /api/data-catalog/sources/sync` |
 | "X dropped column Y, clean up the entity" | Reconcile entity | combo: sync + fetch fields + hand off to `lynk-build` |
 
-If unclear, use `AskUserQuestion` to disambiguate. **Note**: a *schema* is a `DB.SCHEMA` scope (e.g., `MAINDB.PUBLIC`); a *source* is a single table inside that scope, with `id = DB.SCHEMA.TABLE` (e.g., `NETWORX_PROD.REPORTS.ACTIONS_ON_LEADS`).
+If unclear, use `AskUserQuestion` to disambiguate. **Note**: a *schema* is a `DB.SCHEMA` scope (e.g., `MAINDB.PUBLIC`); a *source* is a single table inside that scope, with `id = DB.SCHEMA.TABLE` (e.g., `MAINDB.PUBLIC.ORDERS`).
 
 ### 2. Confirm the API token
 
-The shared script `scripts/lynk_api.py` reads `LYNK_API_TOKEN` from `.env` at the project root. If missing, follow the same handshake `lynk-validate` uses:
+If `.env` does not have `LYNK_API_TOKEN` set, run:
 
 ```
 ! python scripts/lynk_api.py --print-setup
@@ -47,37 +47,21 @@ The shared script `scripts/lynk_api.py` reads `LYNK_API_TOKEN` from `.env` at th
 
 Ask the user via `AskUserQuestion`: **Set up the token now** (relay the script output, ask user to paste token in chat, then `LYNK_API_TOKEN='<paste>' python scripts/lynk_api.py --save-token`) or **Skip** (exit with `Operation not performed — no API token configured.`).
 
-For branch-scoped operations, default to the current local branch (`! git rev-parse --abbrev-ref HEAD`); fall back to `main` if detached. Domain defaults to `default`.
-
 ### 3. Run the call
 
-All endpoints accept `x-branch-name` and `x-domain-name` headers; pass them on every call. Add `--env dev` if the user said "on dev".
-
-For full request/response schemas, **first** `WebFetch https://docs.getlynk.ai/llms.txt` to see the doc tree (the API reference may live at `api/rest-api`, or be split into per-section pages — let the index tell you). Then narrow-fetch only the page(s) you actually need.
+Use the action and route from the table in Step 1. Add `--env dev` if the user said "on dev". Branch and domain are resolved by the script (current git branch, `default` domain) — pass `--branch` or `--domain` only to override.
 
 ```
-! python scripts/lynk_api.py GET integrations/data/schemas \
-    --header x-branch-name=<branch> --header x-domain-name=default
-
-! python scripts/lynk_api.py PUT integrations/data/schemas \
-    --header x-branch-name=<branch> --header x-domain-name=default \
-    --data '{"schemas":["MAINDB.PUBLIC"]}'
-
-! python scripts/lynk_api.py GET data-catalog/sources \
-    --header x-branch-name=<branch> --header x-domain-name=default
-
-! python scripts/lynk_api.py GET data-catalog/sources/<key_source> \
-    --header x-branch-name=<branch> --header x-domain-name=default
-
-! python scripts/lynk_api.py POST data-catalog/sources/sync \
-    --header x-branch-name=<branch> --header x-domain-name=default
+! python scripts/lynk_api.py <METHOD> <route> [--data '<json>']
 ```
 
-`<key_source>` is the `id` field returned by the list-sources call (format: `DB.SCHEMA.TABLE`).
+If you don't know the request/response schema for the chosen route, `WebFetch https://docs.getlynk.ai/llms.txt` and narrow-fetch the relevant page. Skip this fetch when the action table already gives you everything you need.
+
+`<key_source>` (used by the fetch-fields and per-source routes) is the `id` field returned by the list-sources call (format: `DB.SCHEMA.TABLE`).
 
 ### 4. Interpret the response
 
-The script prints `{url, method, env, status_code, body}`. Present results to the user concisely. When you need field-level detail, follow the same docs-tree pattern as Step 3: fetch `llms.txt` first, then the relevant API page.
+The script prints `{url, method, env, branch, domain, status_code, body}`. Present results to the user concisely. When you need field-level detail and the action table didn't fully cover it, narrow-fetch the relevant API page from `https://docs.getlynk.ai/llms.txt`.
 
 - **List schemas** — show how many are registered, grouped by `DB`.
 - **Add schemas** — confirm what was registered. The call is idempotent; re-adding an existing schema is a no-op, not an error.

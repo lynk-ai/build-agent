@@ -12,12 +12,12 @@ Base URL:
   - dev (LYNK_ENV=dev or --env dev):  https://dev.app.getlynk.ai/api
 
 Usage:
-  # Make an API call
+  # Make an API call. Branch and domain are auto-filled — branch from
+  # `git rev-parse --abbrev-ref HEAD` (fallback `main`), domain from `default`.
+  # Pass --branch or --domain to override.
   python scripts/lynk_api.py POST semantics/validate \
       --query scope=all \
-      --query fail_on_warnings=false \
-      --header x-branch-name=main \
-      --header x-domain-name=default
+      --query fail_on_warnings=false
 
   # Print canonical token-setup instructions (skills relay this verbatim)
   python scripts/lynk_api.py --print-setup
@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -89,6 +90,23 @@ def parse_kv(items: list[str] | None, label: str) -> dict[str, str]:
         k, v = item.split("=", 1)
         out[k.strip()] = v.strip()
     return out
+
+
+def current_git_branch() -> str:
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        branch = out.stdout.strip()
+        if branch and branch != "HEAD":
+            return branch
+    except (FileNotFoundError, subprocess.SubprocessError):
+        pass
+    return "main"
 
 
 def try_json(s: str):
@@ -185,6 +203,14 @@ def main() -> int:
     p.add_argument("--data", help="Request body (raw JSON string)")
     p.add_argument("--data-file", help="Path to file containing JSON body")
     p.add_argument(
+        "--branch",
+        help="Override x-branch-name (default: current git branch, fallback main)",
+    )
+    p.add_argument(
+        "--domain",
+        help="Override x-domain-name (default: default)",
+    )
+    p.add_argument(
         "--env", choices=["prod", "dev"], help="Override LYNK_ENV for this call"
     )
     p.add_argument("--timeout", type=int, default=60)
@@ -230,6 +256,10 @@ def main() -> int:
 
     headers = {"x-api-key": token, "Accept": "application/json"}
     headers.update(parse_kv(args.header, "header"))
+    branch = args.branch or headers.get("x-branch-name") or current_git_branch()
+    domain = args.domain or headers.get("x-domain-name") or "default"
+    headers["x-branch-name"] = branch
+    headers["x-domain-name"] = domain
 
     if args.data and args.data_file:
         print("Pass either --data or --data-file, not both.", file=sys.stderr)
@@ -252,6 +282,8 @@ def main() -> int:
         "url": url,
         "method": args.method,
         "env": env_choice,
+        "branch": branch,
+        "domain": domain,
         "status_code": None,
         "body": None,
     }
