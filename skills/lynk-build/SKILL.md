@@ -39,7 +39,7 @@ The current semantic layer:
 
 Identify which file(s) own the artifact the user mentioned by scanning the actual filenames and folder structure.
 
-### 4. Read the relevant docs
+### 4. Read the relevant docs and detect the SQL engine
 
 **Always fetch the docs index** with `https://docs.getlynk.ai/llms.txt` to see what pages are available. This is the index of all Lynk docs that you can fetch. It also gives you a sense of how the docs are structured, so you can make informed decisions about which files to read for the most relevant context.
 
@@ -58,6 +58,9 @@ In case the user request is referring multiple entities, read all of them, but a
 #### Non Entity
 - If the user does not ask about an entity or its sub-primitives (metrics, features, relationships or context), and it is clear that they are asking about (might be agent behavior, a glossary term, or a domain-level context file), then read only the relevant file(s). 
 If it is not clear, check with the user before moving forward.
+
+#### Detect the SQL engine
+Read `.lynk/config.json` for an `engine`, `dialect`, or `warehouse` field (common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`). If the field is missing, empty, or the file doesn't exist, ask the user via `AskUserQuestion` — do not guess. The dialect drives Rule 7 of `references/content-rules.md`: every SQL snippet you write must be valid in that engine.
 
 ### 5. Get source-table fields when modeling entities
 
@@ -81,7 +84,7 @@ Before drafting the plan, apply `references/content-rules.md` to the proposed ch
 
 Write or edit one file at a time. Show the user what was written before moving to the next.
 
-After each file is saved, run the **per-file quick check** (questions 1, 2, 4 from the bottom of `references/content-rules.md` — right place / clear / internally consistent). After all files in the edit are saved, run the **cross-file pass** (questions 3 and 5 — appears once / references resolve), since those checks need every edited file to be on disk first.
+After each file is saved, run the **per-file quick check** (questions 1, 2, 4, 6 from the bottom of `references/content-rules.md` — right place / clear / internally consistent / engine-compatible SQL). After all files in the edit are saved, run the **cross-file pass** (questions 3 and 5 — appears once / references resolve), since those checks need every edited file to be on disk first.
 
 Fix or escalate to the user before considering the edit done. Don't silently advance past a failure: if a check fails because of a question only the user can answer (naming, contradicting definitions), surface it before continuing.
 

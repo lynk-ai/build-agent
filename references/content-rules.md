@@ -24,22 +24,7 @@ When auditing, flag any content that appears in two places (verbatim or near-ver
 
 Before placing any new content, fetch the relevant file-type spec from `https://docs.getlynk.ai/file-types/` and place per that spec. Never guess. Never rely on memory.
 
-**Common cases — verify against the docs.** This table is a starter heuristic, not the source of truth. The file-type specs at `https://docs.getlynk.ai/file-types/` are authoritative. Use the table only as a quick reference; if the case is even slightly unusual, fetch the spec.
-
-| Content type | Goes in |
-|---|---|
-| Metric definition (SQL aggregation) | Entity YAML, `metrics:` section |
-| Feature definition (field, formula, first-last) | Entity YAML, `features:` section |
-| Entity-to-entity join | `entities_relationships.yml` |
-| Entity-to-non-entity (lookup table) join | Entity YAML, `related_sources:` |
-| Glossary term | Glossary file (`type: glossary`) |
-| Business rule that always applies | Knowledge file (domain or entity scope) |
-| SQL pattern / filter rule for an entity | Entity task instructions |
-| Cross-domain SQL pattern | Domain task instructions |
-| Clarification rule (when to ask vs. assume) | `clarification-policy` |
-| Agent tone / response format | `output-format` |
-
-If the user's request doesn't fit any of these, fetch the docs index (`https://docs.getlynk.ai/llms.txt`) and find the right file-type page before proposing a location.
+The file-type specs are the single source of truth for what goes where. This rulebook deliberately does not duplicate them — that would create drift. If you're not sure which file-type spec applies to the content you're placing, start at the docs index (`https://docs.getlynk.ai/llms.txt`) and navigate from there.
 
 ---
 
@@ -120,6 +105,25 @@ Check for:
 
 ---
 
+## 7. Engine compatibility — SQL must run on the warehouse
+
+Every SQL snippet in `.lynk/` must be valid in the warehouse engine the user runs. That includes metric SQL, formula SQL, `first_last` filters, relationship joins, entity examples, and evaluation `expected_output`.
+
+**Detect the engine first.** Read `.lynk/config.json` and look for an `engine`, `dialect`, or `warehouse` field. Common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`. If the field is missing, empty, or the file doesn't exist, ask the user — do not guess. Engine drives every check in this rule.
+
+**Dialect-specific red flags:**
+- `QUALIFY` and `IFF` — Snowflake-only.
+- `SAFE_*` functions and backtick-quoted identifiers — BigQuery-only.
+- `DATEADD` / `DATEDIFF` — argument order and unit syntax differ across BigQuery, Snowflake, and Postgres.
+- Window-function syntax, `EXCEPT` vs `MINUS`, `LIMIT` placement — vary across engines.
+- Implicit type coercion behavior differs (e.g. comparing string to integer); be explicit.
+
+**In `lynk-build`** — write SQL using the detected engine's syntax from the start. When a portable form exists, prefer it over an engine-specific shortcut. Don't assume a dialect; if engine isn't yet detected, detect first.
+
+**In `lynk-evaluate`** — scan every SQL snippet against the detected engine and flag dialect-incompatible constructs. **Severity: `error`.** The SQL will fail at runtime, not at parse time, so the user won't see the issue until they run a query.
+
+---
+
 ## Quick check before saving / before closing an audit
 
 For each file you touched (build) or read (evaluate), ask:
@@ -129,5 +133,6 @@ For each file you touched (build) or read (evaluate), ask:
 3. **Appears once?** — Scan related files for the same content; flag duplicates (Rule 1).
 4. **Internally consistent?** — Do the definitions in this file agree with related files in meaning, not just in style (Rule 5)?
 5. **All references resolve?** — Does every named feature, metric, entity, or relationship exist in some YAML (Rule 6a)? Does every concept the prose implies have a backing definition (Rule 6b)?
+6. **Engine-compatible SQL?** — Does every SQL snippet use only constructs valid in the warehouse engine declared in `.lynk/config.json` (Rule 7)?
 
 If the answer to any of these is "no" or "I'm not sure," the work isn't done.
