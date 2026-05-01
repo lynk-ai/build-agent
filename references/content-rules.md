@@ -1,0 +1,117 @@
+# Content Rules — Placement, Clarity, Consistency
+
+These rules govern every edit (`lynk-build`) and every audit (`lynk-evaluate`) of files inside `.lynk/`. Both skills enforce the same rulebook so a file passes evaluate if and only if it would have passed build.
+
+The rules are prescriptive: each one says what good looks like and what the agent must do when it sees a violation.
+
+---
+
+## 1. Single source of truth
+
+Each instruction, definition, or rule lives in exactly **one** file.
+
+When adding new content, first check whether it (or something equivalent) already exists somewhere in `.lynk/`. If it does:
+- If the existing location is correct per Rule 2 → link to it from your edit's plan, do not duplicate.
+- If the existing location is wrong per Rule 2 → relocate it (Rule 3), then add your new content to the correct file.
+
+When auditing, flag any content that appears in two places (verbatim or near-verbatim) — even if both copies look correct individually. Two copies will drift; one of them ends up wrong.
+
+---
+
+## 2. The right place is whatever the docs say
+
+Before placing any new content, fetch the relevant file-type spec from `https://docs.getlynk.ai/file-types/` and place per that spec. Never guess. Never rely on memory.
+
+Common placements (always verify against the docs before acting on them):
+
+| Content type | Goes in |
+|---|---|
+| Metric definition (SQL aggregation) | Entity YAML, `metrics:` section |
+| Feature definition (field, formula, first-last) | Entity YAML, `features:` section |
+| Entity-to-entity join | `entities_relationships.yml` |
+| Entity-to-non-entity (lookup table) join | Entity YAML, `related_sources:` |
+| Glossary term | Glossary file (`type: glossary`) |
+| Business rule that always applies | Knowledge file (domain or entity scope) |
+| SQL pattern / filter rule for an entity | Entity task instructions |
+| Cross-domain SQL pattern | Domain task instructions |
+| Clarification rule (when to ask vs. assume) | `clarification-policy` |
+| Agent tone / response format | `output-format` |
+
+If the user's request doesn't fit any of these, fetch the docs index (`https://docs.getlynk.ai/llms.txt`) and find the right file-type page before proposing a location.
+
+---
+
+## 3. Misplaced content gets offered for relocation, not silently accepted
+
+When you encounter content that doesn't belong where it is:
+
+**In `lynk-build`** — call it out in the plan you present in Step 6, before any edit. Format: *"Found `<content>` in `<wrong_file>`. Per the `<file-type>` spec, it belongs in `<right_file>`. I'll move it as part of this edit."* Wait for user confirmation. Never move silently.
+
+**In `lynk-evaluate`** — flag it as a finding under the `placement` check group with severity `warning` (or `error` if it changes agent behavior — e.g. a metric definition stranded in a knowledge file means the agent can't aggregate that metric). Offer the move as a suggested fix.
+
+Never assume the misplacement was intentional. The cost of a confirmation prompt is much smaller than the cost of an unexpected move.
+
+---
+
+## 4. Every description and instruction must be meaningful and clear
+
+The agent reads descriptions to decide what to do. A description that doesn't help the agent decide is worse than no description — it occupies space and creates noise.
+
+**Reject these red flags. Severity: `warning` if business-critical (entity description, metric description, feature description used in queries), otherwise `suggestion`:**
+
+- **Tautological** — description repeats the name. `country_code: "country_code"`, `description: "the order entity"`.
+- **Vague** — description gives no decision signal. `description: "metric data"`, `description: "customer information"`, `description: "session details"`.
+- **Placeholder** — `TODO`, `tbd`, `xxx`, `FIXME`, `???`, `[fill in]`, `pending`, empty string on a required field.
+- **Shifted-paste** — description matches a *different* field's or entity's name (typically from copy-pasting a row and forgetting to update the description).
+- **Pasted fragment** — description reads like an instruction snippet rather than a description (`"see the customer entity for revenue"` is navigation, not a description).
+- **Empty on a business-critical element** — entity, metric, or feature used in evaluations or examples must have a description.
+
+**What good looks like.** A good description tells the agent (a) what this thing represents and (b) when it applies. Example:
+> `description: A completed purchase transaction. Use this entity for questions about revenue, order volume, purchase dates, and product-level sales.`
+
+---
+
+## 5. Cross-file consistency — no contradictions
+
+The same concept must mean the same thing across glossary, knowledge, task instructions, examples, evaluations, and entity YAML.
+
+**Specific contradictions to watch for:**
+
+- Glossary defines a term (e.g. `at_risk = NPS < 6 OR no login in 60 days`) but a metric or task instruction filters by a different threshold.
+- Knowledge file says one rule (e.g. *"exclude test accounts"*) but examples or evaluations don't apply the filter.
+- Task instructions describe one SQL pattern; entity examples use a different pattern for the same question type.
+- Two knowledge files (entity vs. domain) state different rules for the same entity.
+
+**When you find a contradiction:** in `lynk-build`, ask the user which version is canonical before editing. In `lynk-evaluate`, mark it `needs-client-input` rather than picking a side — the agent does not have authority to decide which definition is correct.
+
+**Style differences are not contradictions.** Different phrasing of the same rule is fine. Only flag when the *meaning* differs.
+
+---
+
+## 6. Reference integrity — every name resolves
+
+Every metric, feature, entity, or relationship referenced in markdown, examples, or `evaluations.yml` must resolve to a definition in some YAML.
+
+**Check for:**
+- A metric referenced as `metric('total_arr')` in an example → must exist in some entity's `metrics:`.
+- A feature referenced in a knowledge file (`use the customer_lifetime_value field`) → must exist in the entity's `features:`.
+- An entity referenced in a join, evaluation, or example (`FROM entity('subscription')`) → must have its own YAML.
+- A `join_name` used in a feature → must exist in `entities_relationships.yml`.
+
+**Severity: `error`.** A broken reference means the agent will fail to resolve a query — this is not a style issue.
+
+**Also flag the inverse:** content the docs describe that isn't backed by a definition (e.g. a knowledge file says *"we report MRR weekly"* but no `mrr` metric exists). Severity: `warning`.
+
+---
+
+## Quick check before saving / before closing an audit
+
+For each file you touched (build) or read (evaluate), ask:
+
+1. **Right place?** — Does each item match the file-type spec from the docs (Rule 2)?
+2. **Clear and meaningful?** — Does each description / instruction tell the agent what to do (Rule 4)?
+3. **Appears once?** — Is anything duplicated across files (Rule 1)?
+4. **Internally consistent?** — Are the rules and definitions in this file aligned with related files (Rule 5)?
+5. **All references resolve?** — Does every named feature, metric, entity, or relationship exist in some YAML (Rule 6)?
+
+If the answer to any of these is "no" or "I'm not sure," the work isn't done.
