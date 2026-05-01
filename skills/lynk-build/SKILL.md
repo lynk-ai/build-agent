@@ -39,7 +39,7 @@ The current semantic layer:
 
 Identify which file(s) own the artifact the user mentioned by scanning the actual filenames and folder structure.
 
-### 4. Read the relevant docs
+### 4. Read the relevant docs and detect the SQL engine
 
 **Always fetch the docs index** with `https://docs.getlynk.ai/llms.txt` to see what pages are available. This is the index of all Lynk docs that you can fetch. It also gives you a sense of how the docs are structured, so you can make informed decisions about which files to read for the most relevant context.
 
@@ -59,6 +59,9 @@ In case the user request is referring multiple entities, read all of them, but a
 - If the user does not ask about an entity or its sub-primitives (metrics, features, relationships or context), and it is clear that they are asking about (might be agent behavior, a glossary term, or a domain-level context file), then read only the relevant file(s). 
 If it is not clear, check with the user before moving forward.
 
+#### Detect the SQL engine
+Read `.lynk/config.json` for an `engine`, `dialect`, or `warehouse` field (common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`). If the field is missing, empty, or the file doesn't exist, ask the user via `AskUserQuestion` — do not guess. The dialect drives Rule 7 of `references/content-rules.md`: every SQL snippet you write must be valid in that engine.
+
 ### 5. Get source-table fields when modeling entities
 
 When the user wants to add or extend an entity, you need the source table's actual columns to ground the model in real data. Two ways to get them:
@@ -72,9 +75,18 @@ If the user says "I added fields to X" or "columns of X changed", delegate to `l
 
 Share a concise plan: which files you'll create or edit and the key decisions. Wait for the user to confirm before making any changes.
 
+Before drafting the plan, apply `references/content-rules.md` to the proposed change:
+- **Rule 2 (placement)** — confirm the target file is the right place. Use the file-type spec you already fetched in Step 4; fetch now only if you skipped it for this artifact.
+- **Rule 1 (single source)** — check that equivalent content doesn't already exist elsewhere in `.lynk/`.
+- **Rule 3 (misplaced content)** — surface any misplaced content you noticed during reading; offer relocation in this same plan, even if it's outside the original request.
+
 ### 7. Execute step by step
 
 Write or edit one file at a time. Show the user what was written before moving to the next.
+
+After each file is saved, run the **per-file quick check** (questions 1, 2, 4, 6 from the bottom of `references/content-rules.md` — right place / clear / internally consistent / engine-compatible SQL). After all files in the edit are saved, run the **cross-file pass** (questions 3 and 5 — appears once / references resolve), since those checks need every edited file to be on disk first.
+
+Fix or escalate to the user before considering the edit done. Don't silently advance past a failure: if a check fails because of a question only the user can answer (naming, contradicting definitions), surface it before continuing.
 
 ### 8. Evaluate what you built
 
@@ -90,4 +102,4 @@ Give references from the docs to justify your decisions. If you make assumptions
 ## Best Practices
 - Always look for conflicts and ambiguities in the context files. Always flag them to the user and ask for clarification before proceeding.
 - Never change files before getting user confirmation on the plan. Always be transparent about what you're changing and why.
-- When you add or edit the context files, make sure you add context to one place only. For example, if you add instructions about how to filter an entity - add it to the entity's task instructions, not the knowledge file. If you add a definition of a metric, add it to the entity YAML, not the knowledge file. Avoid adding the same context to multiple places.
+- Apply `references/content-rules.md` on every edit. Surface out-of-scope misplacements or duplications you notice (Rule 3) — don't silently accept them.

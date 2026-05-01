@@ -89,7 +89,7 @@ Run the shared script:
 
 If the user said "validate on dev" or "validate on prod", append `--env dev` or `--env prod` to override `LYNK_ENV` for this single call.
 
-The script prints `{url, method, env, status_code, body}`. Interpret per status. When you need the full response schema, **first** `WebFetch https://docs.getlynk.ai/llms.txt` to see the doc tree, then narrow-fetch the relevant API reference page from there (typically `api/rest-api`, but check the index — it may be split into per-section pages).
+The script prints `{url, method, env, status_code, body}`. Interpret per status. When you need the full response schema, read `references/rest-api.md` in this repo — that is the canonical endpoint reference. Do not fetch the public docs site for API details; the REST API spec is intentionally not published there.
 
 - **2xx with `status: valid`** → success, no issues.
 - **2xx or 422 with `status: invalid`** → validation issues. The issue list is at `body.issues` for 200 or `body.detail.issues` for 422; same per-issue shape either way.

@@ -55,13 +55,13 @@ Use the action and route from the table in Step 1. Add `--env dev` if the user s
 ! python scripts/lynk_api.py <METHOD> <route> [--data '<json>']
 ```
 
-If you don't know the request/response schema for the chosen route, `WebFetch https://docs.getlynk.ai/llms.txt` and narrow-fetch the relevant page. Skip this fetch when the action table already gives you everything you need.
+If you don't know the request/response schema for the chosen route, read `references/rest-api.md` in this repo — that is the canonical endpoint reference for these skills. Do not fetch the public docs site for API details; the REST API spec is intentionally not published there.
 
 `<key_source>` (used by the fetch-fields and per-source routes) is the `id` field returned by the list-sources call (format: `DB.SCHEMA.TABLE`).
 
 ### 4. Interpret the response
 
-The script prints `{url, method, env, branch, domain, status_code, body}`. Present results to the user concisely. When you need field-level detail and the action table didn't fully cover it, narrow-fetch the relevant API page from `https://docs.getlynk.ai/llms.txt`.
+The script prints `{url, method, env, branch, domain, status_code, body}`. Present results to the user concisely. When you need field-level detail and the action table didn't fully cover it, read the relevant section of `references/rest-api.md`.
 
 - **List schemas** — show how many are registered, grouped by `DB`.
 - **Add schemas** — confirm what was registered. The call is idempotent; re-adding an existing schema is a no-op, not an error.

@@ -79,7 +79,7 @@ For multi-entity evaluation (seed + related), read `entities_relationships.yml` 
 
 ### 4. Read the relevant docs and detect the SQL engine
 
-- **Always fetch `https://docs.getlynk.ai/llms.txt` first** to see the doc tree — the "right thing in the right file" check in Step 6 depends on knowing what file-type specs exist. Then `WebFetch` only the `concepts/<concept>` and `file-types/<type>` pages relevant to the targets in Step 2.
+- **Always fetch `https://docs.getlynk.ai/llms.txt` first** to see the doc tree — the placement check (Rule 2 of `references/content-rules.md`) in Step 6 depends on knowing what file-type specs exist. Then `WebFetch` only the `concepts/<concept>` and `file-types/<type>` pages relevant to the targets in Step 2.
 - **Detect the engine.** Read `.lynk/config.json` and look for an `engine`, `dialect`, or `warehouse` field. Common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`. If the field is missing, empty, or the file doesn't exist, ask the user via `AskUserQuestion` — do not guess. Record the dialect; every SQL check in Step 6 keys off it.
 
 ---
@@ -98,15 +98,10 @@ For each finding, record: **severity** (error / warning / needs-client-input / s
 
 Apply these check groups against the target files:
 
-- **Description quality** — flag tautological descriptions (description equals the field name), shifted-paste (description matches a *different* field's name), placeholder text (TODO, tbd, xxx, FIXME, ???), pasted instruction fragments, and empty descriptions on business-critical elements (metrics, features used in evaluations, entities).
-- **Right thing in the right file** — verify each artifact's content matches its file-type spec from the docs. E.g., metric definitions belong in the entity YAML (not knowledge); clarification rules belong in `clarification-policy` (not task instructions); agent-tone rules belong in `output-format`.
-- **Cross-file consistency** — glossary ↔ metric SQL, glossary ↔ knowledge, glossary ↔ task instructions; entity knowledge ↔ entity YAML; task instructions ↔ examples & evaluations; examples & evaluations ↔ context. Flag contradictions, not style differences.
-- **Reference integrity** — every metric, feature, entity, or relationship referenced in markdown, entity examples, or `evaluations.yml` must resolve to a definition in some YAML.
+- **Content rules** — apply every rule in `references/content-rules.md` against the target files: single source of truth (Rule 1), correct placement per the docs (Rule 2), description clarity and red flags (Rule 4), cross-file consistency (Rule 5), reference integrity (Rule 6), and engine compatibility (Rule 7). Use the detection rule number in the report's `local/<check-group>` tag — e.g. `local/content-rules-2` for a misplaced metric definition, `local/content-rules-7` for `QUALIFY` in a non-Snowflake engine. The quick check at the bottom of `content-rules.md` is the minimum coverage; nothing in the target files should be skipped.
 - **YAML & SQL structure** — required fields present, `{}` placeholders in metric SQL, `METRIC()` wrapping where required, no aggregates inside formula features, no circular formula dependencies, no duplicate feature / metric / relationship keys.
-- **Missing context** — if knowledge / glossary / task instructions describe an aggregation ("total X", "sum of X", "count of X", "average X", "X per Y") and no matching metric exists, flag it.
-- **Engine compatibility** — for the engine detected in Step 4, scan every SQL snippet (metric SQL, formula SQL, `first_last` filters, relationship joins, entity examples, evaluation `expected_output`) for dialect-incompatible constructs. Examples: `QUALIFY` and `IFF` are Snowflake-only; `SAFE_*` and backtick identifiers are BigQuery-only; `DATEADD/DATEDIFF` syntax differs across BigQuery / Snowflake / Postgres.
 
-When examples and task instructions disagree on the *intended* behavior, mark it **needs-client-input** rather than picking a side.
+When examples and task instructions disagree on the *intended* behavior, mark it **needs-client-input** rather than picking a side (see Rule 5 of `content-rules.md`).
 
 ---
 
@@ -142,7 +137,8 @@ Merge the backend issues from Step 5 with the local findings from Step 6 into on
 
 Source tag values:
 - `backend/<scope>/<category>` — from the API. `<scope>` is `entity` / `relationship` / `context`; `<category>` is `schema` / `semantic`.
-- `local/<check-group>` — from Step 6. `<check-group>` is one of: `description-quality`, `file-placement`, `cross-file`, `reference-integrity`, `yaml-sql-structure`, `missing-context`, `engine-compatibility`.
+- `local/content-rules-<N>` — from Step 6 content-rules application. `<N>` is the *detection* rule number from `references/content-rules.md` (1 single-source, 2 placement, 4 description-clarity, 5 consistency, 6 reference-integrity, 7 engine-compatibility). Rule 3 is action protocol, not a detection — misplacement findings are tagged `content-rules-2` and cite Rule 3 in the suggested-fix.
+- `local/yaml-sql-structure` — from Step 6's structural validation group.
 
 When the backend was skipped, the summary's `Backend:` field reads `skipped: <reason>` and the report contains only `[local/...]` issues. Mention the skip reason explicitly in the Summary paragraph so the user knows backend issues weren't checked.
 
