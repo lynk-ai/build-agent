@@ -51,53 +51,42 @@ For branch-scoped operations, default to the current local branch (`! git rev-pa
 
 ### 3. Run the call
 
-All endpoints accept `x-branch-name` and `x-domain-name` headers; pass them on every call. Add `--env dev` if the user said "on dev".
+All endpoints accept `x-branch-name` and `x-domain-name` headers; pass them on every call. Add `--env dev` if the user said "on dev". For full request/response schemas, fetch `https://docs.getlynk.ai/api/data-catalog` on demand via `WebFetch`.
 
 ```
-# List schemas → 200 {schemas: ["DB.SCHEMA", ...]}
 ! python scripts/lynk_api.py GET integrations/data/schemas \
     --header x-branch-name=<branch> --header x-domain-name=default
 
-# Add schemas → 204 No Content. Body required: {schemas: ["DB.SCHEMA", ...]}.
-# Idempotent — re-adding an existing schema also returns 204.
 ! python scripts/lynk_api.py PUT integrations/data/schemas \
     --header x-branch-name=<branch> --header x-domain-name=default \
     --data '{"schemas":["MAINDB.PUBLIC"]}'
 
-# List sources (tables) → 200, paginated.
-# {total_records, total_pages, current_page, assets: [{id, name, db, schema, keys, businessKeys, description, sourceType}]}
-# id format: DB.SCHEMA.TABLE — that's the value to use as <key_source> below.
-# Use --query page=N for pages beyond the first.
 ! python scripts/lynk_api.py GET data-catalog/sources \
     --header x-branch-name=<branch> --header x-domain-name=default
 
-# Fetch one source's columns → 200
-# {source: {id, name, db, schema, columns: [{name, description, type, dataType, nullable, defaultValue}]}}
-# `type` is semantic (string / number / datetime / boolean / ...).
-# `dataType` is engine-specific (TEXT / NUMBER / TIMESTAMP_NTZ / VARCHAR / ...).
 ! python scripts/lynk_api.py GET data-catalog/sources/<key_source> \
     --header x-branch-name=<branch> --header x-domain-name=default
 
-# Sync sources → 200, synchronous (~10s for hundreds of tables). No body.
-# {sourcesCreated, sourcesUpdated, sourcesDeleted, fieldsCreated, fieldsUpdated, fieldsDeleted, durationSeconds, message}
 ! python scripts/lynk_api.py POST data-catalog/sources/sync \
     --header x-branch-name=<branch> --header x-domain-name=default
 ```
 
+`<key_source>` is the `id` field returned by the list-sources call (format: `DB.SCHEMA.TABLE`).
+
 ### 4. Interpret the response
 
-The script prints `{url, method, env, status_code, body}`.
+The script prints `{url, method, env, status_code, body}`. Present results to the user concisely; consult `docs.getlynk.ai/api/data-catalog` for field-level detail when needed.
 
-- **List schemas (200)** — `body.schemas` is a flat list of `"DB.SCHEMA"` strings. Group them by `DB` for display and tell the user how many are registered.
-- **Add schemas (204)** — empty body; report success with the schemas that were sent. If the user passed a schema that already exists, it's a no-op — clarify so they don't think a duplicate was created.
-- **List sources (200)** — `body.assets[]` carries `id` (the `<key_source>`), `name`, `db`, `schema`, `keys`, `businessKeys`, `description`, `sourceType`. Use `body.total_pages` and `body.current_page` to decide whether to fetch more pages. For large tenants (200+ tables), filter client-side by `db` / `schema` based on what the user is asking about.
-- **Fetch source fields (200)** — `body.source.columns[]` is the canonical column list. Each column has `name`, optional `description`, `type` (semantic), `dataType` (engine-specific), `nullable`, `defaultValue`. When grounding entity field features, prefer `dataType` for SQL casting and `type` for semantic intent.
-- **Sync sources (200)** — surface the diff stats verbatim (e.g., *"212 tables synced; 2 fields created, 0 deleted"*). If `fieldsDeleted > 0`, immediately recommend the reconcile flow (Step 5) before any further modeling — entity features may point at deleted columns.
-- **422 with `detail.[]` (FastAPI validation)** — quote the missing/invalid field path and adjust. For PUT schemas, `detail[0].loc=["body"]` with `msg="Field required"` means the `{schemas: [...]}` wrapper is missing.
+- **List schemas** — show how many are registered, grouped by `DB`.
+- **Add schemas** — confirm what was registered. The call is idempotent; re-adding an existing schema is a no-op, not an error.
+- **List sources** — paginated; use `--query page=N` for further pages. For large tenants, filter client-side by what the user asked about.
+- **Fetch source fields** — show the column list; this is the canonical truth for that source.
+- **Sync sources** — surface the diff stats verbatim. If `fieldsDeleted > 0`, recommend the reconcile flow (Step 5) before further modeling.
 - **401 / 403** — token issue; route to `lynk-validate` Step 4 token-handshake (`--print-setup`, `--save-token`).
-- **404** on a source `<key_source>` — that `id` isn't in the list-sources response; the user may need to run sync first.
+- **404** on a `<key_source>` — that `id` isn't in the list-sources response; the user may need to sync first.
+- **4xx / 5xx otherwise** — quote the body's error message verbatim.
 
-If the response shape is unexpected, show the raw body and ask the user how to proceed instead of guessing.
+If the response shape is unexpected, show the raw body and ask how to proceed instead of guessing.
 
 ### 5. Reconcile entity YAML on source change
 

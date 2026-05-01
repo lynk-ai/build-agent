@@ -89,14 +89,13 @@ Run the shared script:
 
 If the user said "validate on dev" or "validate on prod", append `--env dev` or `--env prod` to override `LYNK_ENV` for this single call.
 
-The script prints `{url, method, env, status_code, body}`. Interpret the response:
+The script prints `{url, method, env, status_code, body}`. Interpret per status; consult `docs.getlynk.ai/api/semantics` for the full response schema when needed.
 
-- **HTTP 200**, `body.status == "valid"` → success, no issues. `error_count` and `warning_count` are 0.
-- **HTTP 200**, `body.status == "invalid"` or **HTTP 422** with `body.detail.status == "invalid"` → validation issues. The issue list is at `body.issues` (200) or `body.detail.issues` (422). Same shape either way.
-- **HTTP 401 / 403** → auth failed. Ask the user to verify the token in `.env` and that it isn't expired.
-- **HTTP 404** → wrong route or environment. Show the URL the script called.
-- **HTTP 5xx** → backend issue. Quote the status and message; suggest retry.
-- **Connection error** (script exit 3) → quote the error reason; check network or `LYNK_ENV`.
+- **2xx with `status: valid`** → success, no issues.
+- **2xx or 422 with `status: invalid`** → validation issues. The issue list is at `body.issues` for 200 or `body.detail.issues` for 422; same per-issue shape either way.
+- **401 / 403** → auth failed; ask the user to verify the token in `.env` and check it isn't expired.
+- **404** → wrong route or environment; show the URL the script called.
+- **5xx / connection error (script exit 3)** → quote the message; suggest retry.
 
 ### 6. Produce the validation report
 
