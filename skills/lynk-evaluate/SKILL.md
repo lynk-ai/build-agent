@@ -78,12 +78,20 @@ For multi-entity evaluation (seed + related), read `entities_relationships.yml` 
 
 ### 4. Read the relevant docs and detect the SQL engine
 
-- **Always fetch `https://docs.getlynk.ai/llms.txt` first** to see the doc tree — the "right thing in the right file" check in Step 5 depends on knowing what file-type specs exist. Then `WebFetch` only the `concepts/<concept>` and `file-types/<type>` pages relevant to the targets in Step 2.
-- **Detect the engine.** Read `.lynk/config.json` and look for an `engine`, `dialect`, or `warehouse` field. Common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`. If the field is missing, empty, or the file doesn't exist, ask the user via `AskUserQuestion` — do not guess. Record the dialect; every SQL check in Step 5 keys off it.
+- **Always fetch `https://docs.getlynk.ai/llms.txt` first** to see the doc tree — the "right thing in the right file" check in Step 6 depends on knowing what file-type specs exist. Then `WebFetch` only the `concepts/<concept>` and `file-types/<type>` pages relevant to the targets in Step 2.
+- **Detect the engine.** Read `.lynk/config.json` and look for an `engine`, `dialect`, or `warehouse` field. Common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`. If the field is missing, empty, or the file doesn't exist, ask the user via `AskUserQuestion` — do not guess. Record the dialect; every SQL check in Step 6 keys off it.
 
 ---
 
-### 5. Evaluate
+### 5. Run the backend validity check
+
+Run the `lynk-validate` flow — its **steps 1–5** (branch detection, dirty-tree handling, origin check, token check, API call) — **without producing validate's report**. Capture the raw issue list for merging into the unified report in Step 7.
+
+If validate skips (no token, user cancelled at the dirty-tree prompt, or branch not on origin), record the skip reason as one of: `no token`, `user cancelled`, `branch not on origin`. **Do not abort the evaluation** — local checks in Step 6 still run regardless.
+
+---
+
+### 6. Evaluate locally
 
 For each finding, record: **severity** (error / warning / needs-client-input / suggestion), **location** (file + field or feature name), **what's wrong**, **how to fix it**.
 
@@ -101,35 +109,66 @@ When examples and task instructions disagree on the *intended* behavior, mark it
 
 ---
 
-### 6. Produce the evaluation report
+### 7. Produce the evaluation report
+
+Merge the backend issues from Step 5 with the local findings from Step 6 into one unified report. Each issue carries a source tag so the user knows where it came from.
 
 **If the user asked about a specific metric / feature / relationship:** lead with a focused section on that item — its evaluation result, issues, and suggested fixes — before the broader entity report.
 
 **Report structure:**
 
 ```
-## Evaluation Report — [Target Name] (engine: [dialect])
+## Evaluation Report — [Target Name] (engine: [dialect]) · Backend: [ok | <n> errors, <m> warnings | skipped: <reason>]
 
 ### Summary
-[1-2 sentences: overall health, number of issues by severity, dialect applied]
+[1-2 sentences: overall health, number of issues by severity, dialect applied, backend status]
 
 ### Errors (must fix)
-- **[Location]**: [What's wrong] → [How to fix]
+- **[Location]** [backend/<scope>/<category> | local/<check-group>]: [What's wrong] → [How to fix]
 
 ### Warnings (should fix)
-- **[Location]**: [What's wrong] → [How to fix]
+- **[Location]** [backend/... | local/...]: [What's wrong] → [How to fix]
 
 ### Needs client input
-- **[Location]**: [Conflict between instructions and examples / unresolvable intent] → [What you need from the user]
+- **[Location]** [local/...]: [Conflict between instructions and examples / unresolvable intent] → [What you need from the user]
 
 ### Suggestions (nice to have)
-- **[Location]**: [What could be improved] → [Suggested improvement]
+- **[Location]** [local/...]: [What could be improved] → [Suggested improvement]
 
 ### What looks good
 - [Bullet list of things that are well-modeled — be specific]
 ```
 
+Source tag values:
+- `backend/<scope>/<category>` — from the API. `<scope>` is `entity` / `relationship` / `context`; `<category>` is `schema` / `semantic`.
+- `local/<check-group>` — from Step 6. `<check-group>` is one of: `description-quality`, `file-placement`, `cross-file`, `reference-integrity`, `yaml-sql-structure`, `missing-context`, `engine-compatibility`.
+
+When the backend was skipped, the summary's `Backend:` field reads `skipped: <reason>` and the report contains only `[local/...]` issues. Mention the skip reason explicitly in the Summary paragraph so the user knows backend issues weren't checked.
+
 If no issues are found in a severity tier, omit that section entirely.
+
+---
+
+### 8. Offer fixes and re-evaluate (bounded loop, hard cap 3)
+
+If the report has errors or warnings, this skill — **and only this skill** — drives the fix-and-recheck loop. Build's Step 8 and validate's Output Format defer here; never run a parallel fix loop in those skills.
+
+For each iteration (max 3):
+
+1. **Offer fixes via `AskUserQuestion`:**
+   - If errors exist: single option `Fix all <N> errors and ask about warnings`, plus `Stop — accept remaining issues`.
+   - If only warnings exist: present them as `multiSelect: true` so the user picks which to fix. Include `Stop`.
+   - Suggestions are never auto-fixed; mention them but don't include in the offer.
+
+2. **If the user opts in:** delegate the edits to `lynk-build` Steps 6–7 (plan and confirm, then execute). Build re-reads the relevant docs as part of its normal flow, so every fix attempt stays doc-grounded.
+
+3. **Re-check locally:** re-run **Steps 3 and 6 only** (re-read the edited files; re-do local checks). Skip Step 4 (engine/docs unchanged) and Step 5 — the backend won't see uncommitted changes, so re-running validate mid-loop would just return the same issues.
+
+4. **Repeat** with the iteration number in the prompt (`Attempt 2 of 3 — <N> issues remain. Fix? Stop?`). **After iteration 3, exit unconditionally** even if issues remain. Tell the user: *"Reached the 3-attempt cap. <N> issues remain — fix manually, or re-run `lynk-evaluate` to start a fresh loop."* This cap is non-negotiable; it prevents runaway loops if the agent can't converge.
+
+5. If the user picks **Stop** at any iteration, exit immediately and leave the remaining issues in the final report.
+
+**Backend re-check (post-loop).** If Step 5 reported backend issues *and* any fixes were applied during the loop, ask the user once: *"Commit your fixes and re-run the backend check?"*. If yes, run the full `lynk-validate` flow (it handles commit-and-push and the API call). Otherwise, leave the original backend findings in the report annotated `(initial check; may be stale after local fixes)`.
 
 For **full graph evaluation**, group findings by entity/file rather than by severity tier, so the user can focus on one entity at a time.
 

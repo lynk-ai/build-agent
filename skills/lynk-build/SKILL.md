@@ -71,6 +71,12 @@ Share a concise plan: which files you'll create or edit and the key decisions. W
 
 Write or edit one file at a time. Show the user what was written before moving to the next.
 
+### 8. Evaluate what you built
+
+Once all edits are saved, run the `lynk-evaluate` flow targeted at the artifact you just edited (the entity, glossary, or domain file from Step 7) — not the full graph. Evaluate already chains the backend `lynk-validate` call **and** owns the fix-offer + re-evaluation loop (capped at 3 attempts). Just present whatever evaluate returns; **do not** run a parallel fix loop here.
+
+Skip this step only if the user explicitly opted out ("just add the field, don't evaluate it").
+
 ## Output Format
 
 Always respond clearly with the recommendations as bullet points, and use code blocks to show any file content.

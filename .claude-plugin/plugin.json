@@ -1,10 +1,10 @@
 {
   "name": "lynk-semantic-layer",
-  "description": "Build, edit, and evaluate the Lynk semantic layer in .lynk/. Ships two skills — lynk-build and lynk-evaluate — that cover entities, metrics, features, relationships, glossary, domains, and context files.",
-  "version": "0.1.0",
+  "description": "Build, edit, evaluate, and validate the Lynk semantic layer in .lynk/. Ships three skills — lynk-build, lynk-evaluate, and lynk-validate — covering entities, metrics, features, relationships, glossary, domains, context files, and backend validity checks.",
+  "version": "0.2.0",
   "author": {
     "name": "Lynk"
   },
   "homepage": "https://docs.getlynk.ai",
-  "keywords": ["lynk", "semantic-layer", "modeling", "evaluation"]
+  "keywords": ["lynk", "semantic-layer", "modeling", "evaluation", "validation"]
 }
