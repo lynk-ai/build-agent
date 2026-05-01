@@ -14,9 +14,9 @@
         "source": "github",
         "repo": "lynk-ai/build-agent"
       },
-      "description": "Build, edit, evaluate, and validate a Lynk semantic layer in .lynk/ — entities, metrics, features, relationships, glossary, domains, context files, and backend validity checks.",
+      "description": "Build, edit, evaluate, and validate a Lynk semantic layer in .lynk/, plus manage data sources via the Lynk API — entities, metrics, features, relationships, glossary, domains, context files, backend validity checks, and schema/source operations.",
       "category": "semantic-layer",
-      "keywords": ["lynk", "semantic-layer", "modeling", "evaluation", "validation", "data"]
+      "keywords": ["lynk", "semantic-layer", "modeling", "evaluation", "validation", "data-catalog", "data"]
     }
   ]
 }
