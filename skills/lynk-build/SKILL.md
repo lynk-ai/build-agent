@@ -72,13 +72,18 @@ If the user says "I added fields to X" or "columns of X changed", delegate to `l
 
 Share a concise plan: which files you'll create or edit and the key decisions. Wait for the user to confirm before making any changes.
 
-Before drafting the plan, apply `references/content-rules.md` to the proposed change. In particular: confirm the target file is the right place per Rule 2, check that no equivalent content already exists elsewhere (Rule 1), and surface any misplaced content you noticed for relocation in this same plan (Rule 3).
+Before drafting the plan, apply `references/content-rules.md` to the proposed change:
+- **Rule 2 (placement)** — confirm the target file is the right place. Use the file-type spec you already fetched in Step 4; fetch now only if you skipped it for this artifact.
+- **Rule 1 (single source)** — check that equivalent content doesn't already exist elsewhere in `.lynk/`.
+- **Rule 3 (misplaced content)** — surface any misplaced content you noticed during reading; offer relocation in this same plan, even if it's outside the original request.
 
 ### 7. Execute step by step
 
 Write or edit one file at a time. Show the user what was written before moving to the next.
 
-After each file is saved, run the quick check at the bottom of `references/content-rules.md` against your edit (right place / clear / appears once / consistent / references resolve). Fix anything that fails before moving to the next file.
+After each file is saved, run the **per-file quick check** (questions 1, 2, 4 from the bottom of `references/content-rules.md` — right place / clear / internally consistent). After all files in the edit are saved, run the **cross-file pass** (questions 3 and 5 — appears once / references resolve), since those checks need every edited file to be on disk first.
+
+Fix or escalate to the user before considering the edit done. Don't silently advance past a failure: if a check fails because of a question only the user can answer (naming, contradicting definitions), surface it before continuing.
 
 ### 8. Evaluate what you built
 
@@ -94,4 +99,4 @@ Give references from the docs to justify your decisions. If you make assumptions
 ## Best Practices
 - Always look for conflicts and ambiguities in the context files. Always flag them to the user and ask for clarification before proceeding.
 - Never change files before getting user confirmation on the plan. Always be transparent about what you're changing and why.
-- Apply `references/content-rules.md` on every edit — placement (Rule 2), single source of truth (Rule 1), clarity of every description and instruction (Rule 4), consistency with related files (Rule 5), and reference integrity (Rule 6). Surface any misplaced or duplicated content you notice along the way (Rule 3) — even if it's outside the user's request — and offer to fix it as part of the plan.
+- Apply `references/content-rules.md` on every edit. Surface out-of-scope misplacements or duplications you notice (Rule 3) — don't silently accept them.

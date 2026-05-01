@@ -16,13 +16,15 @@ When adding new content, first check whether it (or something equivalent) alread
 
 When auditing, flag any content that appears in two places (verbatim or near-verbatim) — even if both copies look correct individually. Two copies will drift; one of them ends up wrong.
 
+**Severity: `warning`.** Duplicates will drift over time. If two copies *already contradict each other*, escalate as a Rule 5 contradiction (`needs-client-input`) — the contradiction is more urgent than the duplication.
+
 ---
 
 ## 2. The right place is whatever the docs say
 
 Before placing any new content, fetch the relevant file-type spec from `https://docs.getlynk.ai/file-types/` and place per that spec. Never guess. Never rely on memory.
 
-Common placements (always verify against the docs before acting on them):
+**Common cases — verify against the docs.** This table is a starter heuristic, not the source of truth. The file-type specs at `https://docs.getlynk.ai/file-types/` are authoritative. Use the table only as a quick reference; if the case is even slightly unusual, fetch the spec.
 
 | Content type | Goes in |
 |---|---|
@@ -42,6 +44,8 @@ If the user's request doesn't fit any of these, fetch the docs index (`https://d
 ---
 
 ## 3. Misplaced content gets offered for relocation, not silently accepted
+
+This rule is **action protocol**, not a separate detection. Misplacement is detected by Rule 2; Rule 3 governs how the agent acts on what Rule 2 found. Findings stay tagged `content-rules-2`; the suggested-fix text cites Rule 3.
 
 When you encounter content that doesn't belong where it is:
 
@@ -69,6 +73,9 @@ The agent reads descriptions to decide what to do. A description that doesn't he
 **What good looks like.** A good description tells the agent (a) what this thing represents and (b) when it applies. Example:
 > `description: A completed purchase transaction. Use this entity for questions about revenue, order volume, purchase dates, and product-level sales.`
 
+For an instruction (e.g. in task instructions), good looks like a clear rule the agent can follow without having to interpret intent:
+> *"For revenue questions on the order entity, always exclude `is_test_order = true` rows. The default revenue metric is `sum_net_revenue`, not `sum_gross_revenue`."*
+
 ---
 
 ## 5. Cross-file consistency — no contradictions
@@ -82,17 +89,21 @@ The same concept must mean the same thing across glossary, knowledge, task instr
 - Task instructions describe one SQL pattern; entity examples use a different pattern for the same question type.
 - Two knowledge files (entity vs. domain) state different rules for the same entity.
 
-**When you find a contradiction:** in `lynk-build`, ask the user which version is canonical before editing. In `lynk-evaluate`, mark it `needs-client-input` rather than picking a side — the agent does not have authority to decide which definition is correct.
+**When you find a contradiction:** in `lynk-build`, ask the user which version is canonical before editing. In `lynk-evaluate`, mark it `needs-client-input` rather than picking a side.
+
+**Severity: `needs-client-input`.** The agent does not have authority to decide which definition is correct.
 
 **Style differences are not contradictions.** Different phrasing of the same rule is fine. Only flag when the *meaning* differs.
 
 ---
 
-## 6. Reference integrity — every name resolves
+## 6. Reference & content integrity
 
-Every metric, feature, entity, or relationship referenced in markdown, examples, or `evaluations.yml` must resolve to a definition in some YAML.
+Two shapes of the same problem — names without definitions, or definitions implied without names.
 
-**Check for:**
+**6a. Forward references — every name resolves.** Every metric, feature, entity, or relationship *named* in markdown, examples, or `evaluations.yml` must resolve to a definition in some YAML.
+
+Check for:
 - A metric referenced as `metric('total_arr')` in an example → must exist in some entity's `metrics:`.
 - A feature referenced in a knowledge file (`use the customer_lifetime_value field`) → must exist in the entity's `features:`.
 - An entity referenced in a join, evaluation, or example (`FROM entity('subscription')`) → must have its own YAML.
@@ -100,7 +111,12 @@ Every metric, feature, entity, or relationship referenced in markdown, examples,
 
 **Severity: `error`.** A broken reference means the agent will fail to resolve a query — this is not a style issue.
 
-**Also flag the inverse:** content the docs describe that isn't backed by a definition (e.g. a knowledge file says *"we report MRR weekly"* but no `mrr` metric exists). Severity: `warning`.
+**6b. Implied-but-undefined.** Content described in prose without a backing definition. Examples:
+- A knowledge file says *"we report MRR weekly"* but no `mrr` metric exists.
+- A task instruction references *"the high-value customer segment"* but no feature flags it.
+- The glossary defines a term that no entity, metric, or feature surfaces.
+
+**Severity: `warning`.** The agent will be unable to answer cleanly when asked about something the prose says exists.
 
 ---
 
@@ -110,8 +126,8 @@ For each file you touched (build) or read (evaluate), ask:
 
 1. **Right place?** — Does each item match the file-type spec from the docs (Rule 2)?
 2. **Clear and meaningful?** — Does each description / instruction tell the agent what to do (Rule 4)?
-3. **Appears once?** — Is anything duplicated across files (Rule 1)?
-4. **Internally consistent?** — Are the rules and definitions in this file aligned with related files (Rule 5)?
-5. **All references resolve?** — Does every named feature, metric, entity, or relationship exist in some YAML (Rule 6)?
+3. **Appears once?** — Scan related files for the same content; flag duplicates (Rule 1).
+4. **Internally consistent?** — Do the definitions in this file agree with related files in meaning, not just in style (Rule 5)?
+5. **All references resolve?** — Does every named feature, metric, entity, or relationship exist in some YAML (Rule 6a)? Does every concept the prose implies have a backing definition (Rule 6b)?
 
 If the answer to any of these is "no" or "I'm not sure," the work isn't done.

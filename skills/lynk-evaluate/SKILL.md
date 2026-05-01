@@ -79,7 +79,7 @@ For multi-entity evaluation (seed + related), read `entities_relationships.yml` 
 
 ### 4. Read the relevant docs and detect the SQL engine
 
-- **Always fetch `https://docs.getlynk.ai/llms.txt` first** to see the doc tree — the "right thing in the right file" check in Step 6 depends on knowing what file-type specs exist. Then `WebFetch` only the `concepts/<concept>` and `file-types/<type>` pages relevant to the targets in Step 2.
+- **Always fetch `https://docs.getlynk.ai/llms.txt` first** to see the doc tree — the placement check (Rule 2 of `references/content-rules.md`) in Step 6 depends on knowing what file-type specs exist. Then `WebFetch` only the `concepts/<concept>` and `file-types/<type>` pages relevant to the targets in Step 2.
 - **Detect the engine.** Read `.lynk/config.json` and look for an `engine`, `dialect`, or `warehouse` field. Common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`. If the field is missing, empty, or the file doesn't exist, ask the user via `AskUserQuestion` — do not guess. Record the dialect; every SQL check in Step 6 keys off it.
 
 ---
@@ -102,7 +102,7 @@ Apply these check groups against the target files:
 - **YAML & SQL structure** — required fields present, `{}` placeholders in metric SQL, `METRIC()` wrapping where required, no aggregates inside formula features, no circular formula dependencies, no duplicate feature / metric / relationship keys.
 - **Engine compatibility** — for the engine detected in Step 4, scan every SQL snippet (metric SQL, formula SQL, `first_last` filters, relationship joins, entity examples, evaluation `expected_output`) for dialect-incompatible constructs. Examples: `QUALIFY` and `IFF` are Snowflake-only; `SAFE_*` and backtick identifiers are BigQuery-only; `DATEADD/DATEDIFF` syntax differs across BigQuery / Snowflake / Postgres.
 
-When examples and task instructions disagree on the *intended* behavior, mark it **needs-client-input** rather than picking a side. (This is Rule 5 of `content-rules.md` applied at the cross-file level.)
+When examples and task instructions disagree on the *intended* behavior, mark it **needs-client-input** rather than picking a side (see Rule 5 of `content-rules.md`).
 
 ---
 
@@ -138,7 +138,7 @@ Merge the backend issues from Step 5 with the local findings from Step 6 into on
 
 Source tag values:
 - `backend/<scope>/<category>` — from the API. `<scope>` is `entity` / `relationship` / `context`; `<category>` is `schema` / `semantic`.
-- `local/content-rules-<N>` — from Step 6 content-rules application. `<N>` is the rule number from `references/content-rules.md` (1 single-source, 2 placement, 3 misplaced-relocation, 4 description-clarity, 5 consistency, 6 reference-integrity).
+- `local/content-rules-<N>` — from Step 6 content-rules application. `<N>` is the *detection* rule number from `references/content-rules.md` (1 single-source, 2 placement, 4 description-clarity, 5 consistency, 6 reference-integrity). Rule 3 is action protocol, not a detection — misplacement findings are tagged `content-rules-2` and cite Rule 3 in the suggested-fix.
 - `local/<check-group>` — from Step 6's other groups: `yaml-sql-structure`, `engine-compatibility`.
 
 When the backend was skipped, the summary's `Backend:` field reads `skipped: <reason>` and the report contains only `[local/...]` issues. Mention the skip reason explicitly in the Summary paragraph so the user knows backend issues weren't checked.
