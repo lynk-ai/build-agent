@@ -59,9 +59,14 @@ In case the user request is referring multiple entities, read all of them, but a
 - If the user does not ask about an entity or its sub-primitives (metrics, features, relationships or context), and it is clear that they are asking about (might be agent behavior, a glossary term, or a domain-level context file), then read only the relevant file(s). 
 If it is not clear, check with the user before moving forward.
 
-### 5. Use user-provided files
+### 5. Get source-table fields when modeling entities
 
-If the user attached or pasted CSV, text, or document files, use them as source data to derive field names, values, definitions, or examples for the semantic layer.
+When the user wants to add or extend an entity, you need the source table's actual columns to ground the model in real data. Two ways to get them:
+
+- **From the Lynk catalog (preferred)** — delegate to `lynk-sources` to fetch the source's columns. If the source isn't yet catalogued, lynk-sources can register it first. See the lynk-sources skill for the action table and endpoint detail.
+- **From user-provided files** — if the user attached or pasted CSV, text, or document files, use those instead.
+
+If the user says "I added fields to X" or "columns of X changed", delegate to `lynk-sources` to sync, refetch fields, and reconcile any field features whose source columns no longer exist.
 
 ### 6. Plan and confirm
 
@@ -70,6 +75,12 @@ Share a concise plan: which files you'll create or edit and the key decisions. W
 ### 7. Execute step by step
 
 Write or edit one file at a time. Show the user what was written before moving to the next.
+
+### 8. Evaluate what you built
+
+Once all edits are saved, run the `lynk-evaluate` flow targeted at the artifact you just edited (the entity, glossary, or domain file from Step 7) — not the full graph. Evaluate already chains the backend `lynk-validate` call **and** owns the fix-offer + re-evaluation loop (capped at 3 attempts). Just present whatever evaluate returns; **do not** run a parallel fix loop here.
+
+Skip this step only if the user explicitly opted out ("just add the field, don't evaluate it").
 
 ## Output Format
 
