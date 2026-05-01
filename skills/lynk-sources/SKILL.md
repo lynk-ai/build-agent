@@ -51,7 +51,9 @@ For branch-scoped operations, default to the current local branch (`! git rev-pa
 
 ### 3. Run the call
 
-All endpoints accept `x-branch-name` and `x-domain-name` headers; pass them on every call. Add `--env dev` if the user said "on dev". For full request/response schemas, `WebFetch https://docs.getlynk.ai/api/rest-api` on demand.
+All endpoints accept `x-branch-name` and `x-domain-name` headers; pass them on every call. Add `--env dev` if the user said "on dev".
+
+For full request/response schemas, **first** `WebFetch https://docs.getlynk.ai/llms.txt` to see the doc tree (the API reference may live at `api/rest-api`, or be split into per-section pages — let the index tell you). Then narrow-fetch only the page(s) you actually need.
 
 ```
 ! python scripts/lynk_api.py GET integrations/data/schemas \
@@ -75,7 +77,7 @@ All endpoints accept `x-branch-name` and `x-domain-name` headers; pass them on e
 
 ### 4. Interpret the response
 
-The script prints `{url, method, env, status_code, body}`. Present results to the user concisely; consult `https://docs.getlynk.ai/api/rest-api` (`WebFetch`) for field-level detail when needed.
+The script prints `{url, method, env, status_code, body}`. Present results to the user concisely. When you need field-level detail, follow the same docs-tree pattern as Step 3: fetch `llms.txt` first, then the relevant API page.
 
 - **List schemas** — show how many are registered, grouped by `DB`.
 - **Add schemas** — confirm what was registered. The call is idempotent; re-adding an existing schema is a no-op, not an error.
