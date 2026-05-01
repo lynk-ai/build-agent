@@ -9,9 +9,9 @@ description: >
   exist, add a schema or table, sync sources, refresh source columns after a
   schema change, or clean up entity fields after a source update. Trigger
   phrases: "list schemas", "what schemas do I have", "add schema X", "add the
-  orders table", "sync sources", "sync schemas", "I added fields to X", "the
-  source columns changed", "what fields does <table> have", "clean up after X
-  dropped column Y".
+  orders table", "sync sources", "sync schemas", "I added fields to orders",
+  "the source columns changed", "what fields does the orders table have",
+  "clean up after the inquiries table dropped column referrer_id".
 
   This skill is read-and-API-only. When entity YAMLs need to be edited as a
   result (e.g., removing field features whose source column was dropped), it

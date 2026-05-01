@@ -10,9 +10,10 @@ description: >
   diagnose the semantic layer or any part of it. Trigger on phrases like
   "evaluate the semantics", "is this good enough for the agent", "audit my
   entities", "check description quality", "any contradictions in my context",
-  "will my SQL run on <engine>", "review the glossary", "check my evaluations
-  against instructions", "evaluate player", "is the semantic layer well
-  structured", or any request to assess the quality of files inside `.lynk/`.
+  "will my SQL run on Snowflake", "will this work on BigQuery", "review the
+  glossary", "check my evaluations against instructions", "evaluate player",
+  "is the semantic layer well structured", or any request to assess the quality
+  of files inside `.lynk/`.
 ---
 
 # lynk-evaluate-semantics
