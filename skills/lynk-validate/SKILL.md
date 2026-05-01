@@ -89,7 +89,7 @@ Run the shared script:
 
 If the user said "validate on dev" or "validate on prod", append `--env dev` or `--env prod` to override `LYNK_ENV` for this single call.
 
-The script prints `{url, method, env, status_code, body}`. Interpret per status; consult `docs.getlynk.ai/api/semantics` for the full response schema when needed.
+The script prints `{url, method, env, status_code, body}`. Interpret per status; `WebFetch https://docs.getlynk.ai/api/rest-api` for the full response schema when needed.
 
 - **2xx with `status: valid`** → success, no issues.
 - **2xx or 422 with `status: invalid`** → validation issues. The issue list is at `body.issues` for 200 or `body.detail.issues` for 422; same per-issue shape either way.

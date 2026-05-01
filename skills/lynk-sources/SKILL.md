@@ -51,7 +51,7 @@ For branch-scoped operations, default to the current local branch (`! git rev-pa
 
 ### 3. Run the call
 
-All endpoints accept `x-branch-name` and `x-domain-name` headers; pass them on every call. Add `--env dev` if the user said "on dev". For full request/response schemas, fetch `https://docs.getlynk.ai/api/data-catalog` on demand via `WebFetch`.
+All endpoints accept `x-branch-name` and `x-domain-name` headers; pass them on every call. Add `--env dev` if the user said "on dev". For full request/response schemas, `WebFetch https://docs.getlynk.ai/api/rest-api` on demand.
 
 ```
 ! python scripts/lynk_api.py GET integrations/data/schemas \
@@ -75,7 +75,7 @@ All endpoints accept `x-branch-name` and `x-domain-name` headers; pass them on e
 
 ### 4. Interpret the response
 
-The script prints `{url, method, env, status_code, body}`. Present results to the user concisely; consult `docs.getlynk.ai/api/data-catalog` for field-level detail when needed.
+The script prints `{url, method, env, status_code, body}`. Present results to the user concisely; consult `https://docs.getlynk.ai/api/rest-api` (`WebFetch`) for field-level detail when needed.
 
 - **List schemas** — show how many are registered, grouped by `DB`.
 - **Add schemas** — confirm what was registered. The call is idempotent; re-adding an existing schema is a no-op, not an error.

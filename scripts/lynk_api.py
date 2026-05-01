@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Generic Lynk API caller used by skills (lynk-validate and any future API skill).
 
+Full endpoint reference: https://docs.getlynk.ai/api/rest-api
+
 Reads `LYNK_API_TOKEN` and `LYNK_ENV` from `.env` at the current working
 directory, then calls the Lynk backend and prints a structured JSON result
 to stdout: `{url, method, env, status_code, body}`.
@@ -54,6 +56,8 @@ To set up your token:
        LYNK_API_TOKEN=<your-token>
   5. Optional: to call dev instead of prod, also add:
        LYNK_ENV=dev
+
+Full API reference: https://docs.getlynk.ai/api/rest-api
 """
 
 
