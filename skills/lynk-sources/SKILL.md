@@ -18,7 +18,7 @@ description: >
   hands off to `lynk-build`.
 ---
 
-# lynk-sources
+# lynk-sources-semantics
 
 ## Steps
 

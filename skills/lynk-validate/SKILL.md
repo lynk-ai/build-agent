@@ -16,7 +16,7 @@ description: >
   backend API.
 ---
 
-# lynk-validate
+# lynk-validate-semantics
 
 ## Steps
 
