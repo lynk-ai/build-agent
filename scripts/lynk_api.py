@@ -169,9 +169,10 @@ def action_save_token() -> int:
     repo_root = os.getcwd()
     token = os.environ.get("LYNK_API_TOKEN")
     if not token:
+        script_path = os.path.abspath(__file__)
         print(
             "save-token requires LYNK_API_TOKEN in the environment "
-            "(e.g. `LYNK_API_TOKEN=<value> python scripts/lynk_api.py --save-token`).",
+            f'(e.g. `LYNK_API_TOKEN=<value> python3 "{script_path}" --save-token`).',
             file=sys.stderr,
         )
         return 2
