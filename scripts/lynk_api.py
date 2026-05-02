@@ -170,9 +170,10 @@ def action_save_token() -> int:
     token = os.environ.get("LYNK_API_TOKEN")
     if not token:
         script_path = os.path.abspath(__file__)
+        py = '"$(command -v python3 || command -v python)"'
         print(
             "save-token requires LYNK_API_TOKEN in the environment "
-            f'(e.g. `LYNK_API_TOKEN=<value> python3 "{script_path}" --save-token`).',
+            f'(e.g. `LYNK_API_TOKEN=<value> {py} "{script_path}" --save-token`).',
             file=sys.stderr,
         )
         return 2
