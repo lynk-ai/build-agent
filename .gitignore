@@ -3,3 +3,5 @@
 .env
 .env.*
 !.env.example
+# lynk-ask eval workspace (fixtures, runs, benchmarks, viewer)
+skills/lynk-ask-workspace/

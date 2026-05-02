@@ -60,18 +60,18 @@ If the branch is missing on origin, ask the user whether to push it (`git push -
 The skill calls `${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py`, which reads `LYNK_API_TOKEN` from `.env` at the user's project root (CWD). If the token is missing, the script will exit with setup instructions on stderr — you can also fetch them on demand:
 
 ```
-! python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" --print-setup
+! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" --print-setup
 ```
 
-Always invoke the script with its absolute path via `${CLAUDE_PLUGIN_ROOT}` — when the plugin is installed via the marketplace, the script lives inside the plugin's install dir, not the user's repo. A bare `scripts/lynk_api.py` resolves against the user's CWD and fails. Use `python3` rather than `python` — macOS Homebrew installs only `python3`, and Windows/Linux installs that ship `python` always also expose `python3`.
+Always invoke the script with its absolute path via `${CLAUDE_PLUGIN_ROOT}` — when the plugin is installed via the marketplace, the script lives inside the plugin's install dir, not the user's repo. A bare `scripts/lynk_api.py` resolves against the user's CWD and fails. The `"$(command -v python3 || command -v python)"` prefix picks whichever Python interpreter the user has — macOS Homebrew ships only `python3`, some Windows installs only `python`, and the picker tolerates both.
 
 Ask the user via `AskUserQuestion` how to proceed:
 
 - **Set up the token now** — relay the script's setup instructions to the user verbatim, then ask them to paste the token directly in chat (not into a shell command). Once they paste it, persist it via the script — which handles `.env` writing **and** `.gitignore` protection in one step:
   ```
-  ! LYNK_API_TOKEN='<paste>' python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" --save-token
+  ! LYNK_API_TOKEN='<paste>' "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" --save-token
   ```
-  Add `LYNK_ENV=dev` to the env (before `python3`) if the user said "use dev". Re-run Step 5 once the script returns. *Note: the token will appear in shell history once — the user can rotate it after if concerned.*
+  Add `LYNK_ENV=dev` to the env (before the Python invocation) if the user said "use dev". Re-run Step 5 once the script returns. *Note: the token will appear in shell history once — the user can rotate it after if concerned.*
 
 - **Skip backend validation** — record the outcome `Backend validation not performed — no API token configured.` and jump to Step 6 to emit the skip outcome.
 
@@ -82,7 +82,7 @@ Future API-driven skills should reuse the same `--print-setup` / `--save-token` 
 Run the shared script:
 
 ```
-! python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" POST semantics/validate \
+! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" POST semantics/validate \
     --query scope=all \
     --query fail_on_warnings=false \
     --header x-branch-name=<branch> \

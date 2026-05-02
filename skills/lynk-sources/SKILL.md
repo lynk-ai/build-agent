@@ -42,19 +42,19 @@ If unclear, use `AskUserQuestion` to disambiguate. **Note**: a *schema* is a `DB
 If `.env` does not have `LYNK_API_TOKEN` set, run:
 
 ```
-! python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" --print-setup
+! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" --print-setup
 ```
 
-Always invoke the script with its absolute path via `${CLAUDE_PLUGIN_ROOT}` — the script lives inside the plugin's install dir, not the user's repo, so a bare `scripts/lynk_api.py` won't resolve. Use `python3` rather than `python` for macOS compatibility.
+Always invoke the script with its absolute path via `${CLAUDE_PLUGIN_ROOT}` — the script lives inside the plugin's install dir, not the user's repo, so a bare `scripts/lynk_api.py` won't resolve. The `"$(command -v python3 || command -v python)"` prefix picks whichever Python interpreter the user has, since some envs ship only one of the two binary names.
 
-Ask the user via `AskUserQuestion`: **Set up the token now** (relay the script output, ask user to paste token in chat, then `LYNK_API_TOKEN='<paste>' python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" --save-token`) or **Skip** (exit with `Operation not performed — no API token configured.`).
+Ask the user via `AskUserQuestion`: **Set up the token now** (relay the script output, ask user to paste token in chat, then `LYNK_API_TOKEN='<paste>' "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" --save-token`) or **Skip** (exit with `Operation not performed — no API token configured.`).
 
 ### 3. Run the call
 
 Use the action and route from the table in Step 1. Add `--env dev` if the user said "on dev". Branch and domain are resolved by the script (current git branch, `default` domain) — pass `--branch` or `--domain` only to override.
 
 ```
-! python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" <METHOD> <route> [--data '<json>']
+! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" <METHOD> <route> [--data '<json>']
 ```
 
 If you don't know the request/response schema for the chosen route, read `references/rest-api.md` in this repo — that is the canonical endpoint reference for these skills. Do not fetch the public docs site for API details; the REST API spec is intentionally not published there.
