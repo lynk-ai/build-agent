@@ -1,20 +1,58 @@
 #!/usr/bin/env bash
 # Claude Code statusline: cwd, git branch, model, context %, session cost.
+# Parses the input JSON with bash regex (no jq) so this works on Windows
+# Git Bash too, where jq isn't shipped.
 
 INPUT=$(cat)
 
 c() { printf '\033[%sm' "$1"; }
 RESET=$'\033[0m'
 
-cwd=$(jq -r '.workspace.current_dir // .cwd // empty' <<< "$INPUT")
-display_name=$(jq -r '.model.display_name // empty' <<< "$INPUT")
-model_id=$(jq -r '.model.id // empty' <<< "$INPUT")
-cost=$(jq -r '.cost.total_cost_usd // 0' <<< "$INPUT")
-ctx_pct=$(jq -r '.context_window.used_percentage // empty' <<< "$INPUT")
+# Echo the first "key":"..." string value found in $INPUT.
+js() {
+  if [[ "$INPUT" =~ \"$1\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  fi
+}
+
+# Echo the first "key": <number> found in $INPUT.
+jn() {
+  if [[ "$INPUT" =~ \"$1\"[[:space:]]*:[[:space:]]*(-?[0-9]+(\.[0-9]+)?) ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  fi
+}
+
+cwd=$(js current_dir)
+[[ -z "$cwd" ]] && cwd=$(js cwd)
+display_name=$(js display_name)
+
+# .model.id — search inside the "model": { ... } object to avoid matching
+# any other "id" key that might appear elsewhere in the JSON.
+model_id=""
+if [[ "$INPUT" =~ \"model\"[[:space:]]*:[[:space:]]*\{([^}]*)\} ]]; then
+  model_obj=${BASH_REMATCH[1]}
+  if [[ "$model_obj" =~ \"id\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
+    model_id=${BASH_REMATCH[1]}
+  fi
+fi
+
+cost=$(jn total_cost_usd)
+[[ -z "$cost" ]] && cost=0
+ctx_pct=$(jn used_percentage)
+
+# .rate_limits as an object => subscription session (suppress cost).
+on_subscription=""
+if [[ "$INPUT" =~ \"rate_limits\"[[:space:]]*:[[:space:]]*\{ ]]; then
+  on_subscription="yes"
+fi
 
 display_cwd="$cwd"
 if [[ -n "$HOME" && "$cwd" == "$HOME"* ]]; then
   display_cwd="~${cwd#$HOME}"
+elif [[ -n "$USERPROFILE" && "$cwd" == "$USERPROFILE"* ]]; then
+  # Windows: Claude Code passes paths like C:\Users\tom\..., HOME in Git Bash
+  # is /c/Users/tom, so HOME doesn't match. USERPROFILE does.
+  display_cwd="~${cwd#$USERPROFILE}"
 fi
 
 version=$(grep -oE '[0-9]+-[0-9]+' <<< "$model_id" | head -1 | tr - .)
@@ -56,9 +94,6 @@ else
 fi
 
 cost_fmt=$(printf '%.2f' "$cost" 2>/dev/null || echo "0.00")
-
-# Only show cost on API-key auth: subscription sessions get .rate_limits populated.
-on_subscription=$(jq -r 'if (.rate_limits // null) != null then "yes" else empty end' <<< "$INPUT")
 
 parts=()
 parts+=("$(c '36')📁 ${display_cwd}${RESET}")

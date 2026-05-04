@@ -15,8 +15,8 @@ These files are meant to be copied into the **customer repository's `.claude/` d
 
 ## Files
 
-- `settings.json` — Claude Code settings (model, `auto` permission mode, status line command, Lynk welcome banner). The `statusLine.command` path is `.claude/statusline.sh`, which resolves correctly once copied into `.claude/`.
-- `statusline.sh` — Status line script showing cwd, git branch, model, context %, and session cost. Must be executable (`chmod +x .claude/statusline.sh`).
+- `settings.json` — Claude Code settings (model, `auto` permission mode, status line command, Lynk welcome banner). The `statusLine.command` is `.claude/statusline.sh`.
+- `statusline.sh` — Status line script showing cwd, git branch, model, context %, and session cost.
 
 ## Install
 
@@ -27,4 +27,12 @@ mkdir -p .claude
 cp /path/to/build-agent/claude-settings/settings.json .claude/
 cp /path/to/build-agent/claude-settings/statusline.sh .claude/
 chmod +x .claude/statusline.sh
+```
+
+On Windows (PowerShell, with Git for Windows installed):
+
+```powershell
+New-Item -ItemType Directory -Force .claude | Out-Null
+Copy-Item \path\to\build-agent\claude-settings\settings.json .claude\
+Copy-Item \path\to\build-agent\claude-settings\statusline.sh .claude\
 ```
