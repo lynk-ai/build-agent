@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "model": "claude-opus-4-7",
+  "effortLevel": "xhigh",
+  "permissions": {
+    "defaultMode": "auto"
+  },
+  "statusLine": {
+    "type": "command",
+    "command": ".claude/statusline.sh"
+  },
+  "autoUpdatesChannel": "stable",
+  "feedbackSurveyRate": 0,
+  "companyAnnouncements": [
+    " _   __   __ _  _ _  __\n| |  \\ \\ / /| \\| | |/ /\n| |__ \\ V / | .` | ' <\n|____| |_|  |_|\\_|_|\\_\\\n\nWelcome to Lynk Semantics!"
+  ],
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  }
+}
