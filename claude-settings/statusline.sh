@@ -9,9 +9,13 @@ c() { printf '\033[%sm' "$1"; }
 RESET=$'\033[0m'
 
 # Echo the first "key":"..." string value found in $INPUT.
+# Unescapes JSON \\ -> \ so Windows paths like "C:\\Users\\Tom" come out
+# as C:\Users\Tom.
 js() {
   if [[ "$INPUT" =~ \"$1\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
-    printf '%s' "${BASH_REMATCH[1]}"
+    local val=${BASH_REMATCH[1]}
+    val=${val//\\\\/\\}
+    printf '%s' "$val"
   fi
 }
 
@@ -33,6 +37,7 @@ if [[ "$INPUT" =~ \"model\"[[:space:]]*:[[:space:]]*\{([^}]*)\} ]]; then
   model_obj=${BASH_REMATCH[1]}
   if [[ "$model_obj" =~ \"id\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
     model_id=${BASH_REMATCH[1]}
+    model_id=${model_id//\\\\/\\}
   fi
 fi
 
@@ -48,11 +53,12 @@ fi
 
 display_cwd="$cwd"
 if [[ -n "$HOME" && "$cwd" == "$HOME"* ]]; then
-  display_cwd="~${cwd#$HOME}"
+  display_cwd="~${cwd#"$HOME"}"
 elif [[ -n "$USERPROFILE" && "$cwd" == "$USERPROFILE"* ]]; then
   # Windows: Claude Code passes paths like C:\Users\tom\..., HOME in Git Bash
-  # is /c/Users/tom, so HOME doesn't match. USERPROFILE does.
-  display_cwd="~${cwd#$USERPROFILE}"
+  # is /c/Users/tom, so HOME doesn't match. USERPROFILE does. Quote the
+  # pattern so backslashes aren't treated as glob escapes.
+  display_cwd="~${cwd#"$USERPROFILE"}"
 fi
 
 version=$(grep -oE '[0-9]+-[0-9]+' <<< "$model_id" | head -1 | tr - .)
