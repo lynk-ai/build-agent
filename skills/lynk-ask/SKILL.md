@@ -19,7 +19,7 @@ description: >
   clarification policy?".
 
   For edits use `lynk-build`; for quality `lynk-evaluate`; for backend
-  checks `lynk-validate`; for sources `lynk-sources`.
+  checks `lynk-validate`.
 ---
 
 # lynk-ask-semantics
@@ -73,7 +73,6 @@ If ambiguous, ask via `AskUserQuestion`.
 - **Concept answer with a natural follow-up** ("…and does my graph have one?") → offer to run an instance lookup (this skill).
 - **User pivots to quality** ("is this metric well-defined?") → offer `lynk-evaluate`.
 - **User pivots to backend validity** → offer `lynk-validate`.
-- **User pivots to source/schema** → offer `lynk-sources`.
 
 Never edit files from this skill — edits belong in `lynk-build`, which has its own plan / confirm / write / evaluate flow that this skill should hand off to rather than bypass.
 

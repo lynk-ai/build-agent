@@ -64,12 +64,10 @@ Read `.lynk/config.json` for an `engine`, `dialect`, or `warehouse` field (commo
 
 ### 5. Get source-table fields when modeling entities
 
-When the user wants to add or extend an entity, you need the source table's actual columns to ground the model in real data. Two ways to get them:
+When the user wants to add or extend an entity, you need the source table's actual columns to ground the model in real data. Get them by:
 
-- **From the Lynk catalog (preferred)** — delegate to `lynk-sources` to fetch the source's columns. If the source isn't yet catalogued, lynk-sources can register it first. See the lynk-sources skill for the action table and endpoint detail.
-- **From user-provided files** — if the user attached or pasted CSV, text, or document files, use those instead.
-
-If the user says "I added fields to X" or "columns of X changed", delegate to `lynk-sources` to sync, refetch fields, and reconcile any field features whose source columns no longer exist.
+- **From user-provided files** — if the user attached or pasted CSV, text, or document files, use those.
+- **Ask the user** — otherwise, ask the user to paste the source table's column list (`AskUserQuestion`). Do not guess column names.
 
 ### 6. Plan and confirm
 
