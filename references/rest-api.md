@@ -41,12 +41,11 @@ Most endpoints accept (and several require) two additional headers that scope th
 
 ## Response shape
 
-Successful responses return JSON. The exception is `204 No Content` mutations (e.g. `PUT /integrations/data/schemas`), which return an empty body. Errors follow standard HTTP semantics:
+Successful responses return JSON. Errors follow standard HTTP semantics:
 
 | Status | Meaning |
 |---|---|
 | `200` | Success — body contains the operation's result. |
-| `204` | Success — no body (used by mutations like `PUT /integrations/data/schemas`). |
 | `401` / `403` | Token missing, invalid, or expired. |
 | `404` | Route or resource not found — check the path and that the resource exists. |
 | `422` | Request body or query failed validation. Body is `{detail: [{loc, msg, type, input}]}` for FastAPI input errors, or a domain-specific validation envelope (see `POST /semantics/validate`). |
@@ -150,34 +149,6 @@ Lists every `DB.SCHEMA` scope currently registered for the tenant.
     "MAINDB.PUBLIC",
     "MAINDB.SALES",
     "SNOWFLAKE.CORE"
-  ]
-}
-```
-
-### `PUT /integrations/data/schemas`
-
-Registers one or more `DB.SCHEMA` scopes. Idempotent — re-adding an existing schema is a no-op.
-
-**Headers:** `x-api-key`, `x-branch-name`, `x-domain-name`.
-
-**Request body:**
-
-```json
-{
-  "schemas": ["MAINDB.PUBLIC", "MAINDB.MARKETING"]
-}
-```
-
-**Responses:**
-
-`204 No Content` — registration succeeded (or was already present).
-
-`422 Unprocessable Entity` — if the body is missing or malformed:
-
-```json
-{
-  "detail": [
-    { "type": "missing", "loc": ["body"], "msg": "Field required", "input": null }
   ]
 }
 ```
