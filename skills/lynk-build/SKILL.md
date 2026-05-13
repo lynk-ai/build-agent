@@ -80,6 +80,8 @@ Before drafting the plan, apply `references/content-rules.md` to the proposed ch
 - **Rule 2 (placement)** — confirm the target file is the right place. Use the file-type spec you already fetched in Step 4; fetch now only if you skipped it for this artifact.
 - **Rule 1 (single source)** — check that equivalent content doesn't already exist elsewhere in `.lynk/`.
 - **Rule 3 (misplaced content)** — surface any misplaced content you noticed during reading; offer relocation in this same plan, even if it's outside the original request.
+- **Rule 8 (Lynk SQL syntax)** — when writing SQL, choose the syntax for the context. In `expected_output`, task-instruction SQL examples, and knowledge-file SQL snippets: feature names without curly braces (bare or aliased like `t.field` are both valid), `metric('name')`, `entity('name')` or `entity("name")` (single/double quotes both valid — match the project's existing convention). In feature-definition `sql:` (formula, metric, filter, join), `{feature_name}` references and `{source}.{destination}` for joins.
+- **Rule 9 (domain coherence)** — when editing a file scoped to a named domain (not `*`), confirm the file has a domain description and the new content fits it. Missing description or off-topic content → offer to draft / relocate in this same plan, per Rule 9.
 
 ### 7. Execute step by step
 

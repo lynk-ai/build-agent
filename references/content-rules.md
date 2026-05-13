@@ -124,6 +124,59 @@ Every SQL snippet in `.lynk/` must be valid in the warehouse engine the user run
 
 ---
 
+## 8. Lynk SQL syntax — examples vs feature definitions
+
+Lynk uses two SQL syntaxes that *look* similar but apply in different contexts. Mixing them is the most common source of broken expected_output and architect drift.
+
+**Curly-brace `{feature_name}` references are REQUIRED in feature-definition SQL:**
+- Formula `sql:` (entity YAML)
+- Entity-metric `sql:` (entity YAML)
+- Metric / `first_last` filter `sql:` (entity YAML)
+- `related_sources` join `sql:` (entity YAML)
+- Relationships `sql:` (entities_relationships.yml) — uses `{source}.{field}` and `{destination}.{field}`
+
+In these contexts, Lynk resolves `{feature_name}` to the underlying column at compile time. Without the braces the reference will not resolve.
+
+**Curly-brace references are FORBIDDEN in:**
+- `expected_output` in entity `examples:` sections
+- `expected_output` in `evaluations.yml` test cases
+- SQL code blocks inside task-instruction markdown files (`task_inst__text-to-sql.md`)
+- SQL snippets inside knowledge markdown files (`knowledge.md`) used to show the agent how a query should look
+
+These contexts represent the SQL the agent should *generate* — features there are accessed by bare name (`WHERE status = 'active'`, `WHERE customer_tier = 'Enterprise'` — even when `customer_tier` is a formula feature).
+
+**Companion conventions in those same contexts:**
+- `metric('name')` — quoted string, lowercase. Not `METRIC(name)` (uppercase, unquoted).
+- `entity('name')` or `entity("name")` — both valid (single or double quotes). Don't flag the alternate form; do flag inconsistency *across examples in the same project* when it looks accidental.
+- Table aliases (`FROM entity('customer') t WHERE t.status = 'active'`) are **optional** — both bare and aliased forms are valid Lynk SQL. Don't flag aliases as errors. Do flag inconsistency *within a single example* (some columns aliased, others bare) when it looks accidental.
+
+**In `lynk-build`** — when writing `expected_output` or task-instruction SQL examples, use canonical Lynk SQL from the start. When writing feature/metric/join `sql:`, use `{feature}` references — this is mandatory.
+
+**In `lynk-evaluate`** — flag every `{feature_name}` and `METRIC(feature_name)` occurrence inside `expected_output`, task-instruction SQL examples, or knowledge-file SQL snippets. **Severity: `warning`** — the SQL may still execute but the agent pattern-matches on these as templates and will reproduce the non-canonical form, drifting away from canonical Lynk SQL across the agent's output. Escalate to **`error`** when the construct affects the evaluation's similarity score in a way that causes a previously-passing test case to fail. Do **not** flag `t.field_name` table aliases or `entity("name")` double quotes — those are valid Lynk SQL.
+
+Also flag the inverse: **bare feature names inside feature-definition `sql:` fields** (e.g., `sql: SUM(amount)` instead of `sql: SUM({amount})` in an entity-metric definition). **Severity: `error`** — these will not resolve.
+
+The local Lynk docs (`https://docs.getlynk.ai/file-types/evaluations-yaml.md`, `task-instructions-md.md`, `entity-yaml.md`) state this rule explicitly and should be the source of truth.
+
+---
+
+## 9. Domain coherence — content scoped to a domain stays on-topic
+
+A file scoped to a named domain (`domain: "marketing"`, `domain: "finance"`, etc.) must (a) have a description of what the domain is about, and (b) hold only content topically aligned with that description. Both requirements — the structural one and the on-topic one — are spelled out in the [knowledge file spec](https://docs.getlynk.ai/file-types/knowledge-md) (Level 2). Apply per that spec; this rule covers only the action protocol when violations are found.
+
+**Fix scopes** (when content fails the on-topic check):
+- **Cross-domain** (applies in this domain *and* others) → relocate to `domain: "*"` so every domain inherits it.
+- **Belongs to a different single domain** (a finance rule in a marketing file) → relocate to that domain's file.
+- **Speculative / nowhere yet** → flag and ask the user whether to keep, relocate, or remove.
+
+**In `lynk-build`** — when adding to a named-domain file, check the existing description and confirm the new content fits. Surface any off-topic sections you notice while reading and offer relocation in the same plan (Rule 3 protocol).
+
+**In `lynk-evaluate`** — flag findings under the `domain-coherence` check group. Quote the offending section's heading and the domain description, and let the user judge.
+
+**Severity: `warning`.** Escalate to **`needs-client-input`** when topical fit is genuinely ambiguous (the section could plausibly belong to two domains, or the description is too vague to anchor the check) — the agent doesn't have authority to decide topical scope unilaterally.
+
+---
+
 ## Quick check before saving / before closing an audit
 
 For each file you touched (build) or read (evaluate), ask:
@@ -134,5 +187,7 @@ For each file you touched (build) or read (evaluate), ask:
 4. **Internally consistent?** — Do the definitions in this file agree with related files in meaning, not just in style (Rule 5)?
 5. **All references resolve?** — Does every named feature, metric, entity, or relationship exist in some YAML (Rule 6a)? Does every concept the prose implies have a backing definition (Rule 6b)?
 6. **Engine-compatible SQL?** — Does every SQL snippet use only constructs valid in the warehouse engine declared in `.lynk/config.json` (Rule 7)?
+7. **Lynk SQL syntax correct for context?** — In feature-definition `sql:` fields, `{feature_name}` references are required; in `expected_output` and SQL examples, features are bare names with `metric('name')` and `entity('name')` (Rule 8)?
+8. **Domain on-topic?** — For files scoped to a named domain: does the file have a domain description, and does each section fit it (Rule 9)?
 
 If the answer to any of these is "no" or "I'm not sure," the work isn't done.
