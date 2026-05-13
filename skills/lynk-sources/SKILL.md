@@ -29,13 +29,15 @@ description: >
 
 Classify the user's request to one of these actions:
 
-| User intent | Action | Endpoint |
-|---|---|---|
-| "list schemas", "what schemas do I have" | List schemas | `GET /api/integrations/data/schemas` |
-| "list tables", "list sources", "what tables do I have" | List sources | `GET /api/data-catalog/sources` |
-| "what fields does X have", "show me the columns of X" | Fetch source fields | `GET /api/data-catalog/sources/<id>` |
-| "sync sources", "the columns changed", "I added fields to X", "add the orders table" | Sync sources | `POST /api/data-catalog/sources/sync` |
-| "X dropped column Y, clean up the entity" | Reconcile entity | combo: sync + fetch fields + hand off to `lynk-build` |
+| User intent | Action | Method | Route |
+|---|---|---|---|
+| "list schemas", "what schemas do I have" | List schemas | `GET` | `integrations/data/schemas` |
+| "list tables", "list sources", "what tables do I have" | List sources | `GET` | `data-catalog/sources` |
+| "what fields does X have", "show me the columns of X" | Fetch source fields | `GET` | `data-catalog/sources/<id>` |
+| "sync sources", "the columns changed", "I added fields to X", "add the orders table" | Sync sources | `POST` | `data-catalog/sources/sync` |
+| "X dropped column Y, clean up the entity" | Reconcile entity | — | combo: sync + fetch fields + hand off to `lynk-build` |
+
+Routes are written **without** the `/api/` prefix and **without** a leading `/`. The script's base URL already includes `/api`, so a leading `/api/` produces `/api/api/...` (404), and a leading `/` is mangled into a Windows path by Git Bash on Windows (e.g., `/data-catalog/...` becomes `C:/Program Files/Git/data-catalog/...`). The form above sidesteps both. The full path-prefixed versions (e.g., `POST /api/data-catalog/sources/sync`) appear only in `references/rest-api.md` for documentation; never pass them as the script's route argument.
 
 If unclear, use `AskUserQuestion` to disambiguate. **Note**: a *schema* is a `DB.SCHEMA` scope (e.g., `MAINDB.PUBLIC`); a *source* is a single table inside that scope, with `id = DB.SCHEMA.TABLE` (e.g., `MAINDB.PUBLIC.ORDERS`).
 
@@ -53,10 +55,18 @@ Ask the user via `AskUserQuestion`: **Set up the token now** (relay the script o
 
 ### 3. Run the call
 
-Use the action and route from the table in Step 1. Add `--env dev` if the user said "on dev". Branch and domain are resolved by the script (current git branch, `default` domain) — pass `--branch` or `--domain` only to override.
+Use the method and route from the table in Step 1 — exactly as written, with no `/api/` and no leading `/`. Add `--env dev` if the user said "on dev". Branch and domain are resolved by the script (current git branch, `default` domain) — pass `--branch` or `--domain` only to override.
 
 ```
 ! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" <METHOD> <route>
+```
+
+Concrete examples:
+
+```
+! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" GET data-catalog/sources
+! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" GET data-catalog/sources/ANALYTICS.LYNK_VIEWS.ORDERS
+! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" POST data-catalog/sources/sync
 ```
 
 If you don't know the request/response schema for the chosen route, read `references/rest-api.md` in this repo — that is the canonical endpoint reference for these skills. Do not fetch the public docs site for API details; the REST API spec is intentionally not published there.
