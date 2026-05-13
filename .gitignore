@@ -5,3 +5,5 @@
 !.env.example
 # lynk-ask eval workspace (fixtures, runs, benchmarks, viewer)
 skills/lynk-ask-workspace/
+# Local LLM trace captures (gatekeeper / agent input-output dumps)
+trace_rows/
