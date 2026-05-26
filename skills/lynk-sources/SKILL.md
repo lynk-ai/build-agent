@@ -1,20 +1,22 @@
 ---
 name: lynk-sources
 description: >
-  Inspect the Lynk data catalog via the API and reconcile entity YAMLs when
-  source columns change: list registered schemas, list sources (tables), fetch
-  a source's columns, sync the catalog against the warehouse, and clean up
-  entity field features whose source columns were dropped.
+  Inspect the Lynk data catalog via the API, reconcile entity YAMLs when
+  source columns change, and execute ad-hoc Lynk SQL against the semantic
+  layer: list registered schemas, list sources (tables), fetch a source's
+  columns, sync the catalog against the warehouse, clean up entity field
+  features whose source columns were dropped, and run Lynk SQL queries.
 
   Use this skill whenever the user asks to: list schemas, see what tables/
   schemas exist, model a new table (fetch its columns first), sync sources,
-  refresh source columns after a warehouse schema change, or clean up entity
-  fields after a source update.
+  refresh source columns after a warehouse schema change, clean up entity
+  fields after a source update, or run / test a Lynk SQL query.
 
   Trigger phrases: "list schemas", "what schemas do I have", "add the orders
   table", "sync sources", "I added fields to orders", "the source columns
   changed", "what fields does the orders table have", "clean up after the
-  inquiries table dropped column referrer_id".
+  inquiries table dropped column referrer_id", "run this query", "test this
+  SQL", "does this lynk SQL execute".
 
   This skill is read-and-API-only on the catalog side. It hands off to
   `lynk-build` for any `.yml` edits it surfaces (e.g., removing field
@@ -36,6 +38,7 @@ Classify the user's request to one of these actions:
 | "what fields does X have", "show me the columns of X" | Fetch source fields | `GET` | `data-catalog/sources/<id>` |
 | "sync sources", "the columns changed", "I added fields to X", "add the orders table" | Sync sources | `POST` | `data-catalog/sources/sync` |
 | "X dropped column Y, clean up the entity" | Reconcile entity | — | combo: sync + fetch fields + hand off to `lynk-build` |
+| "run this SQL", "test this query", "does this lynk SQL execute", "paste a SQL and run it" | Run Lynk SQL | `POST` | `query-engine/query` |
 
 Routes above are bare — no `/api/` prefix, no leading `/`. The script prepends `/api/` itself, and a leading `/` gets mangled into a Windows path by Git Bash. `references/rest-api.md` shows full path-prefixed forms for documentation only — never pass those to the script.
 
@@ -69,6 +72,19 @@ Concrete examples:
 ! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" POST data-catalog/sources/sync
 ```
 
+**Run Lynk SQL** uses `--data` to pass the query — the body must be a JSON-encoded **string**, not an object. Single-quote the outer shell argument so the inner double quotes survive intact:
+
+```
+! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" POST query-engine/query --data '"SELECT lead_id FROM lead LIMIT 1"'
+```
+
+For queries that span lines or contain special characters, write them to a file first and use `--data-file`:
+
+```
+! printf '%s' '"SELECT c.country_name, METRIC('"'"'fm_ngr'"'"') AS fm_ngr FROM activity_agg_daily a JOIN country c ON c.country_code = a.country_id WHERE a.created_date >= '"'"'2026-01-01'"'"' GROUP BY 1 LIMIT 1"' > /tmp/q.json
+! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" POST query-engine/query --data-file /tmp/q.json
+```
+
 If you don't know the request/response schema for the chosen route, read `references/rest-api.md` in this repo — that is the canonical endpoint reference for these skills. Do not fetch the public docs site for API details; the REST API spec is intentionally not published there.
 
 `<key_source>` (used by the fetch-fields and per-source routes) is the `id` field returned by the list-sources call (format: `DB.SCHEMA.TABLE`).
@@ -81,6 +97,7 @@ The script prints `{url, method, env, branch, domain, status_code, body}`. Prese
 - **List sources** — paginated; use `--query page=N` for further pages. For large tenants, filter client-side by what the user asked about.
 - **Fetch source fields** — show the column list; this is the canonical truth for that source.
 - **Sync sources** — surface the diff stats verbatim. If `fieldsDeleted > 0`, recommend the reconcile flow (Step 5) before further modeling. If `sourcesCreated > 0` *or* the sync added new fields to an existing source, **actively offer to model the new content** via `lynk-build` using `AskUserQuestion` — don't just report it as informational. List the new sources / columns explicitly so the user can pick which to model now. If the user said "add the orders table", treat that as standing consent to model immediately and hand the column list off to `lynk-build`.
+- **Run Lynk SQL** — on `200`, show row count and the first few rows; offer to show `metadata.query_metadata.rendered_sql` (the warehouse SQL the engine emitted) and `semantics_used` (which entities / features / metrics / relationships the engine resolved) when the user is debugging *why* a query returned what it did. On `422`, parse `detail`: if it's an array (FastAPI input error), the body shape was wrong — verify you JSON-encoded the SQL string; if it's an object with `error_type: SemanticsConsumptionError`, surface the `message` verbatim and point the user at the entity / feature it names. On `500`, parse `detail.error_type`: `InternalError` with `SQL error: ParserError(...)` is a Lynk-SQL syntax issue (quote the parser message); a bare `"Request failed"` string with no `detail` envelope means the branch's semantic layer is in a broken state — recommend running `lynk-validate` on the same branch before retrying.
 - **401 / 403** — token issue; route to `lynk-validate` Step 4 token-handshake (`--print-setup`, `--save-token`).
 - **404** on a `<key_source>` — that `id` isn't in the list-sources response; the user may need to sync first.
 - **4xx / 5xx otherwise** — quote the body's error message verbatim.
