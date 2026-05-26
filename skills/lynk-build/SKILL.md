@@ -18,7 +18,11 @@ description: >
 
 ## Steps
 
+**Never run a "lean" version of this skill.** Every step below is mandatory regardless of how mechanical, repetitive, or large the edit appears. Bulk pass-through edits (e.g. "add 30 fields from this source") feel mechanical but are exactly the situations where skipped doc reads or substituted sub-skill flows produce silently wrong artifacts — the user has no way to tell until something breaks. If you believe a step can be safely skipped in a given case, **tell the user before the work** which step, why, and what's lost by skipping; wait for explicit opt-in. Never confess the shortcut after the fact.
+
 ### 1. Read the basic Lynk docs to ground yourself
+
+**Mandatory — do not skip even for bulk pass-through edits.** The vocabulary and primitive list below is what every later step assumes you know.
 
 - Fetch `https://docs.getlynk.ai/concepts.md` to understand the Core Vocabulary and Semantic Layer structure — what Lynk primitives exist: Entity, Feature, Metric, Relationship, Glossary, Domain, Context (knowledge / task-instructions / clarification policy / output format).
 
@@ -40,6 +44,8 @@ The current semantic layer:
 Identify which file(s) own the artifact the user mentioned by scanning the actual filenames and folder structure.
 
 ### 4. Read the relevant docs and detect the SQL engine
+
+**Mandatory — do not skip the docs index fetch or the entity-file reads below, even for bulk pass-through edits.** A 30-field "just add these columns" request is exactly where re-reading the entity's knowledge file and task-instructions catches naming conventions, field-visibility rules, and existing groupings that the agent would otherwise miss.
 
 **Always fetch the docs index** with `https://docs.getlynk.ai/llms.txt` to see what pages are available. This is the index of all Lynk docs that you can fetch. It also gives you a sense of how the docs are structured, so you can make informed decisions about which files to read for the most relevant context.
 
@@ -72,6 +78,8 @@ When the user wants to add or extend an entity, you need the source table's actu
 
 If the user says "I added fields to X" or "columns of X changed", delegate to `lynk-sources` to sync, refetch fields, and reconcile any field features whose source columns no longer exist.
 
+**Announce the source-fetch step for multi-field adds (≥5 fields).** Before delegating to `lynk-sources`, tell the user explicitly: *"Fetching current source columns via `lynk-sources` first — grounding against the live catalog so we don't model fields that no longer exist or miss ones that were just added."* The user should see the workflow happen, not have to ask afterwards whether the skill grounded itself.
+
 ### 6. Plan and confirm
 
 Share a concise plan: which files you'll create or edit and the key decisions. Wait for the user to confirm before making any changes.
@@ -91,11 +99,23 @@ After each file is saved, run the **per-file quick check** (questions 1, 2, 4, 6
 
 Fix or escalate to the user before considering the edit done. Don't silently advance past a failure: if a check fails because of a question only the user can answer (naming, contradicting definitions), surface it before continuing.
 
+**After-action summary (mandatory before Step 8).** Once all files are saved and the cross-file pass is clean, produce a single structured recap so the user can see what happened without reconstructing it from per-file messages. Three sections, in this order, even if a section is empty (in which case say "none"):
+
+- **Done** — what was added, changed, or removed. For bulk edits, lead with counts and grouped highlights (mirror the grouping you used during the edit — e.g., *"Added 28 features to `inventory.yml`: Product condition (5), Packaging condition (5), Bin/location flags (18)"*). Cite file paths.
+- **Skipped / deferred + reason** — anything you didn't do that the user might have expected: source columns with no obvious mapping, fields whose type you couldn't confidently infer, naming choices you punted on, content that would have belonged in a file outside the edit's scope, etc. Each item gets an explicit reason.
+- **Needs your input** — items you can't decide unilaterally: contradictory definitions, ambiguous naming, fields that may be PII / internal-only and need a visibility call, etc. Phrase each as a concrete question.
+
+This recap is the user's record of the work and the bridge into Step 8. Never skip it for "small" or "obvious" edits.
+
 ### 8. Evaluate what you built
+
+**Announce the handoff explicitly before starting.** Open this step with a sentence like *"Now chaining into `lynk-evaluate` to surface content-quality issues beyond schema validity — description quality, cross-file consistency, placement, and Lynk SQL syntax."* The user should see the phase change, not have to ask afterwards whether evaluate ran.
 
 Once all edits are saved, run the `lynk-evaluate` flow targeted at the artifact you just edited (the entity, glossary, or domain file from Step 7) — not the full graph. Evaluate already chains the backend `lynk-validate` call **and** owns the fix-offer + re-evaluation loop (capped at 3 attempts). Just present whatever evaluate returns; **do not** run a parallel fix loop here.
 
-Skip this step only if the user explicitly opted out ("just add the field, don't evaluate it").
+**Never substitute a raw API call for the full `lynk-evaluate` flow.** Calling `POST /semantics/validate` directly (or via `lynk-validate` alone) only runs the backend schema check — it skips the content-rules layer (description quality, cross-file consistency, placement, Lynk SQL syntax, domain coherence) that `lynk-evaluate` adds on top. A "the edit was mechanical enough" reason is not sufficient grounds to substitute; the content-rules layer catches naming and placement issues that have nothing to do with how mechanical the change felt.
+
+Skip this step only if the user **explicitly** opted out ("just add the field, don't evaluate it"). Inferring discretion from the size or apparent simplicity of the edit is not opting out.
 
 ## Output Format
 

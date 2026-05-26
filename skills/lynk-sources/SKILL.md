@@ -80,7 +80,7 @@ The script prints `{url, method, env, branch, domain, status_code, body}`. Prese
 - **List schemas** — show how many are registered, grouped by `DB`.
 - **List sources** — paginated; use `--query page=N` for further pages. For large tenants, filter client-side by what the user asked about.
 - **Fetch source fields** — show the column list; this is the canonical truth for that source.
-- **Sync sources** — surface the diff stats verbatim. If `fieldsDeleted > 0`, recommend the reconcile flow (Step 5) before further modeling. If the user said "add the orders table", run sync first; once `sourcesCreated` reflects the new table, hand the column list off to `lynk-build` to model it.
+- **Sync sources** — surface the diff stats verbatim. If `fieldsDeleted > 0`, recommend the reconcile flow (Step 5) before further modeling. If `sourcesCreated > 0` *or* the sync added new fields to an existing source, **actively offer to model the new content** via `lynk-build` using `AskUserQuestion` — don't just report it as informational. List the new sources / columns explicitly so the user can pick which to model now. If the user said "add the orders table", treat that as standing consent to model immediately and hand the column list off to `lynk-build`.
 - **401 / 403** — token issue; route to `lynk-validate` Step 4 token-handshake (`--print-setup`, `--save-token`).
 - **404** on a `<key_source>` — that `id` isn't in the list-sources response; the user may need to sync first.
 - **4xx / 5xx otherwise** — quote the body's error message verbatim.
@@ -105,7 +105,7 @@ When the user said "I added/updated fields to X", "columns changed", or asked to
    - Metrics that aggregate over removed features.
    - Relationships that join on removed columns.
    - Entity examples / evaluations referencing removed features or metrics.
-5. **Show the dependency tree** to the user and confirm before any removals. New columns can be reported as informational — building features off them is a separate `lynk-build` request.
+5. **Show the dependency tree** to the user and confirm before any removals. **For new columns, actively offer to model them** via `lynk-build` using `AskUserQuestion` (e.g., *"3 new columns appeared in `inventory`: `restock_eta`, `supplier_tier`, `is_clearance`. Model them now as features? Yes / Defer / Skip the boolean"*). Don't just report new columns as informational — the user came here because of a source change, so offering to close the loop is the natural next step.
 6. **Hand off the removal list to `lynk-build`** to execute the YAML edits. **Do not write .yml from this skill.** Build's own Step 8 will then run lynk-evaluate to surface any remaining issues.
 
 ## Output Format
