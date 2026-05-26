@@ -89,9 +89,9 @@ Two shapes of the same problem — names without definitions, or definitions imp
 **6a. Forward references — every name resolves.** Every metric, feature, entity, or relationship *named* in markdown, examples, or `evaluations.yml` must resolve to a definition in some YAML.
 
 Check for:
-- A metric referenced as `metric('total_arr')` in an example → must exist in some entity's `metrics:`.
+- A metric referenced as `METRIC('total_arr')` in an example → must exist in some entity's `metrics:`.
 - A feature referenced in a knowledge file (`use the customer_lifetime_value field`) → must exist in the entity's `features:`.
-- An entity referenced in a join, evaluation, or example (`FROM entity('subscription')`) → must have its own YAML.
+- An entity referenced in a join, evaluation, or example (`FROM subscription`, `JOIN subscription`) → must have its own YAML.
 - A `join_name` used in a feature → must exist in `entities_relationships.yml`.
 
 **Severity: `error`.** A broken reference means the agent will fail to resolve a query — this is not a style issue.
@@ -126,37 +126,21 @@ Every SQL snippet in `.lynk/` must be valid in the warehouse engine the user run
 
 ## 8. Lynk SQL syntax — examples vs feature definitions
 
-Lynk uses two SQL syntaxes that *look* similar but apply in different contexts. Mixing them is the most common source of broken expected_output and architect drift.
+Lynk uses two SQL surfaces that look similar but apply in different contexts: **feature-definition `sql:`** (features referenced via `{feature_name}` curly braces, resolved by the Lynk engine at compile time) and **`expected_output` / task-instruction / knowledge SQL** (features as bare names — the SQL the agent should *generate*). Mixing them is the most common source of broken `expected_output` and agent drift.
 
-**Curly-brace `{feature_name}` references are REQUIRED in feature-definition SQL:**
-- Formula `sql:` (entity YAML)
-- Entity-metric `sql:` (entity YAML)
-- Metric / `first_last` filter `sql:` (entity YAML)
-- `related_sources` join `sql:` (entity YAML)
-- Relationships `sql:` (entities_relationships.yml) — uses `{source}.{field}` and `{destination}.{field}`
+This rulebook does not duplicate the SQL spec. Before writing or scanning Lynk SQL, fetch:
 
-In these contexts, Lynk resolves `{feature_name}` to the underlying column at compile time. Without the braces the reference will not resolve.
+- `https://docs.getlynk.ai/api/lynk-sql.md` — entity references, `METRIC()`, joins, supported statements
+- `https://docs.getlynk.ai/file-types/entity-yaml.md` — curly-brace rules in feature-definition `sql:` and metric-over-metric composition
+- `https://docs.getlynk.ai/file-types/evaluations-yaml.md` — canonical `expected_output` syntax
+- `https://docs.getlynk.ai/file-types/task-instructions-md.md` — SQL example conventions inside task-instructions markdown
+- `https://docs.getlynk.ai/file-types/relationships-yaml.md` — relationship `sql:` syntax (`{source}.{field}` / `{destination}.{field}`)
 
-**Curly-brace references are FORBIDDEN in:**
-- `expected_output` in entity `examples:` sections
-- `expected_output` in `evaluations.yml` test cases
-- SQL code blocks inside task-instruction markdown files (`task_inst__text-to-sql.md`)
-- SQL snippets inside knowledge markdown files (`knowledge.md`) used to show the agent how a query should look
+**In `lynk-build`** — fetch the docs above before writing any SQL; write canonical Lynk SQL from the start. Do not rely on memory; the SQL surface has changed before and may again.
 
-These contexts represent the SQL the agent should *generate* — features there are accessed by bare name (`WHERE status = 'active'`, `WHERE customer_tier = 'Enterprise'` — even when `customer_tier` is a formula feature).
+**In `lynk-evaluate`** — fetch the docs above before scanning, then flag any SQL that doesn't match what the current docs say is valid. **Severity: `error`** for surface violations (SQL the engine will not parse). **Severity: `warning`** for forms that may still execute but drift from canonical Lynk SQL and risk causing the agent to reproduce the non-canonical pattern. Cite the relevant docs URL in the suggested fix.
 
-**Companion conventions in those same contexts:**
-- `metric('name')` — quoted string, lowercase. Not `METRIC(name)` (uppercase, unquoted).
-- `entity('name')` or `entity("name")` — both valid (single or double quotes). Don't flag the alternate form; do flag inconsistency *across examples in the same project* when it looks accidental.
-- Table aliases (`FROM entity('customer') t WHERE t.status = 'active'`) are **optional** — both bare and aliased forms are valid Lynk SQL. Don't flag aliases as errors. Do flag inconsistency *within a single example* (some columns aliased, others bare) when it looks accidental.
-
-**In `lynk-build`** — when writing `expected_output` or task-instruction SQL examples, use canonical Lynk SQL from the start. When writing feature/metric/join `sql:`, use `{feature}` references — this is mandatory.
-
-**In `lynk-evaluate`** — flag every `{feature_name}` and `METRIC(feature_name)` occurrence inside `expected_output`, task-instruction SQL examples, or knowledge-file SQL snippets. **Severity: `warning`** — the SQL may still execute but the agent pattern-matches on these as templates and will reproduce the non-canonical form, drifting away from canonical Lynk SQL across the agent's output. Escalate to **`error`** when the construct affects the evaluation's similarity score in a way that causes a previously-passing test case to fail. Do **not** flag `t.field_name` table aliases or `entity("name")` double quotes — those are valid Lynk SQL.
-
-Also flag the inverse: **bare feature names inside feature-definition `sql:` fields** (e.g., `sql: SUM(amount)` instead of `sql: SUM({amount})` in an entity-metric definition). **Severity: `error`** — these will not resolve.
-
-The local Lynk docs (`https://docs.getlynk.ai/file-types/evaluations-yaml.md`, `task-instructions-md.md`, `entity-yaml.md`) state this rule explicitly and should be the source of truth.
+The docs are the source of truth; on any disagreement between a YAML file and the docs, the docs win.
 
 ---
 
@@ -187,7 +171,7 @@ For each file you touched (build) or read (evaluate), ask:
 4. **Internally consistent?** — Do the definitions in this file agree with related files in meaning, not just in style (Rule 5)?
 5. **All references resolve?** — Does every named feature, metric, entity, or relationship exist in some YAML (Rule 6a)? Does every concept the prose implies have a backing definition (Rule 6b)?
 6. **Engine-compatible SQL?** — Does every SQL snippet use only constructs valid in the warehouse engine declared in `.lynk/config.json` (Rule 7)?
-7. **Lynk SQL syntax correct for context?** — In feature-definition `sql:` fields, `{feature_name}` references are required; in `expected_output` and SQL examples, features are bare names with `metric('name')` and `entity('name')` (Rule 8)?
+7. **Lynk SQL syntax correct for context?** — Does every SQL snippet match the canonical form specified in the docs linked from Rule 8 (`{feature_name}` references in feature-definition `sql:`; bare features, bare entities, and canonical `METRIC()` / join forms in `expected_output` and SQL examples)?
 8. **Domain on-topic?** — For files scoped to a named domain: does the file have a domain description, and does each section fit it (Rule 9)?
 
 If the answer to any of these is "no" or "I'm not sure," the work isn't done.

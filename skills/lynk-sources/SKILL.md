@@ -37,7 +37,7 @@ Classify the user's request to one of these actions:
 | "sync sources", "the columns changed", "I added fields to X", "add the orders table" | Sync sources | `POST` | `data-catalog/sources/sync` |
 | "X dropped column Y, clean up the entity" | Reconcile entity | — | combo: sync + fetch fields + hand off to `lynk-build` |
 
-Routes are written **without** the `/api/` prefix and **without** a leading `/`. The script's base URL already includes `/api`, so a leading `/api/` produces `/api/api/...` (404), and a leading `/` is mangled into a Windows path by Git Bash on Windows (e.g., `/data-catalog/...` becomes `C:/Program Files/Git/data-catalog/...`). The form above sidesteps both. The full path-prefixed versions (e.g., `POST /api/data-catalog/sources/sync`) appear only in `references/rest-api.md` for documentation; never pass them as the script's route argument.
+Routes above are bare — no `/api/` prefix, no leading `/`. The script prepends `/api/` itself, and a leading `/` gets mangled into a Windows path by Git Bash. `references/rest-api.md` shows full path-prefixed forms for documentation only — never pass those to the script.
 
 If unclear, use `AskUserQuestion` to disambiguate. **Note**: a *schema* is a `DB.SCHEMA` scope (e.g., `MAINDB.PUBLIC`); a *source* is a single table inside that scope, with `id = DB.SCHEMA.TABLE` (e.g., `MAINDB.PUBLIC.ORDERS`).
 

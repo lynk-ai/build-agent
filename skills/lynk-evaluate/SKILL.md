@@ -135,10 +135,11 @@ Merge the backend issues from Step 5 with the local findings from Step 6 into on
 - [Bullet list of things that are well-modeled — be specific]
 ```
 
-Source tag values:
-- `backend/<scope>/<category>` — from the API. `<scope>` is `entity` / `relationship` / `context`; `<category>` is `schema` / `semantic`.
-- `local/content-rules-<N>` — from Step 6 content-rules application. `<N>` is the *detection* rule number from `references/content-rules.md` (1 single-source, 2 placement, 4 description-clarity, 5 consistency, 6 reference-integrity, 7 engine-compatibility, 8 lynk-sql-syntax, 9 domain-coherence). Rule 3 is action protocol, not a detection — misplacement findings are tagged `content-rules-2` and cite Rule 3 in the suggested-fix.
-- `local/yaml-sql-structure` — from Step 6's structural validation group.
+**Source tag values.** Every finding carries one tag so the user can tell at a glance where it came from — the backend API, or which local rule fired. Three shapes:
+
+- `backend/<scope>/<category>` — raised by the `lynk-validate` API call in Step 5. `<scope>` is `entity` / `relationship` / `context`; `<category>` is `schema` / `semantic`.
+- `local/content-rules-<N>` — raised by a content rule in Step 6. `<N>` is the rule number from `references/content-rules.md`: `1` single-source, `2` placement, `4` description-clarity, `5` consistency, `6` reference-integrity, `7` engine-compatibility, `8` lynk-sql-syntax, `9` domain-coherence. Rule 3 is action protocol (how to act on a Rule 2 finding), not a detection — misplacement findings get tagged `content-rules-2` and cite Rule 3 in the suggested fix.
+- `local/yaml-sql-structure` — raised by the structural validation group in Step 6 (required fields, `{}` placeholders, `METRIC()` wrapping, no aggregates in formulas, no circular formulas, no duplicate keys).
 
 When the backend was skipped, the summary's `Backend:` field reads `skipped: <reason>` and the report contains only `[local/...]` issues. Mention the skip reason explicitly in the Summary paragraph so the user knows backend issues weren't checked.
 
