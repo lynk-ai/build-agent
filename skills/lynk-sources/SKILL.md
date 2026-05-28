@@ -25,6 +25,8 @@ description: >
 
 # lynk-sources-semantics
 
+This skill owns the warehouse-facing workflow: it lists schemas and sources, fetches a source's columns, syncs the catalog, reconciles entity YAMLs when source columns change, and runs ad-hoc Lynk SQL against the semantic layer. Other skills delegate to it whenever they need the warehouse side of the layer — `lynk-build` calls it before modeling a new table and to validate that referenced columns exist; `lynk-evaluate` calls it when checking Lynk SQL against the live engine. The data-catalog REST API is the transport; the workflow logic (reconcile flow, hand-off to `lynk-build` when columns drop, SQL execution) is what makes this a skill rather than a thin API wrapper.
+
 ## Steps
 
 ### 1. Determine the action
