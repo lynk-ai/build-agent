@@ -307,6 +307,103 @@ Refreshes the data catalog by reading the latest schema state from the warehouse
 
 ---
 
+## Query Engine
+
+Executes a Lynk SQL query against the semantic layer on a given branch + domain and returns rows from the warehouse. Used by `lynk-sources` for the "run this query" action and by `lynk-evaluate` to execute every `examples:` and `evaluations.yml` test case end-to-end.
+
+### `POST /query-engine/query`
+
+**Headers:** `x-api-key`, `x-branch-name`, `x-domain-name`, `Content-Type: application/json`.
+
+**Request body:** a JSON-encoded **string** containing the Lynk SQL — not an object. The endpoint expects a bare string at the top level.
+
+```json
+"SELECT lead_id FROM lead LIMIT 1"
+```
+
+Wrapping the SQL in an object (`{"query": "..."}` or `{"sql": "..."}`) returns 422 with `loc: ["body"], type: "string_type"`.
+
+**Responses:**
+
+`200 OK` — the query executed successfully:
+
+```json
+{
+  "data": [
+    { "LEAD_ID": 18674481 }
+  ],
+  "metadata": {
+    "execution_metadata": {
+      "query_duration_ms": 4222,
+      "executed_by": "",
+      "executed_at": "2026-05-26T09:23:09.681924Z"
+    },
+    "query_metadata": {
+      "rendered_sql": "WITH lynk__cte_lead AS (...) SELECT lead_id FROM lynk__cte_lead lead LIMIT 1",
+      "semantics_used": {
+        "entities":      ["lead"],
+        "features":      [{ "name": "lead_id", "entity": "lead" }],
+        "metrics":       [],
+        "relationships": [],
+        "sources":       ["networx_prod.reports.leads_story_view"]
+      }
+    }
+  }
+}
+```
+
+**Response object fields:**
+
+| Field | Description |
+|---|---|
+| `data` | Array of row objects. Column names use the warehouse's casing (e.g., `LEAD_ID` on Snowflake). |
+| `metadata.execution_metadata.query_duration_ms` | End-to-end wall time, ms. |
+| `metadata.execution_metadata.executed_by` | Identity that ran the query (empty for API-token calls). |
+| `metadata.execution_metadata.executed_at` | ISO-8601 UTC timestamp. |
+| `metadata.query_metadata.rendered_sql` | The warehouse-dialect SQL the engine actually executed — useful when debugging why a Lynk SQL query returned unexpected rows. |
+| `metadata.query_metadata.semantics_used` | Which entities, features, metrics, relationships, and source tables the engine resolved for this query. Use this to verify the query touched what you expected. |
+
+`422 Unprocessable Entity` — body shape error or semantic-layer error (missing feature, unresolvable reference). Two sub-shapes:
+
+```json
+{
+  "detail": [
+    { "type": "string_type", "loc": ["body"], "msg": "Input should be a valid string", "input": { "query": "SELECT 1" } }
+  ]
+}
+```
+
+```json
+{
+  "detail": {
+    "error_type": "SemanticsConsumptionError",
+    "error_code": "42P01",
+    "message": "SemanticsConsumptionError: Feature 'nonexistent_field' does not exist in entity 'lead'. Dependency path: lead.nonexistent_field"
+  }
+}
+```
+
+`500 Internal Server Error` — SQL parser errors or warehouse errors. Structured:
+
+```json
+{
+  "detail": {
+    "error_type": "InternalError",
+    "error_code": "XX000",
+    "message": "SQL error: ParserError(\"Expected: an SQL statement, found: SELEC at Line: 1, Column: 1\")"
+  }
+}
+```
+
+A bare `"Request failed"` 500 with no `detail` envelope means a backend exception the engine didn't translate — report it verbatim and check whether the branch's semantic layer itself is in a broken state (`POST /semantics/validate` on the same branch is a good next check).
+
+**Caveats:**
+
+- `SELECT * FROM <entity>` may return a generic 500 with no detail. Prefer explicit column lists in evaluations and examples — that's what canonical Lynk SQL looks like anyway.
+- The endpoint runs the query against the actual warehouse on the branch — long queries take seconds to tens of seconds. For evaluation loops, wrap or append `LIMIT 1` so each test case finishes fast.
+
+---
+
 ## Related Reference
 
 - [Lynk SQL](./lynk-sql.md) — the query syntax the agent uses, which you can also use directly.

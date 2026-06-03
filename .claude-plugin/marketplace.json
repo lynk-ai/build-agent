@@ -5,7 +5,8 @@
   },
   "metadata": {
     "description": "Plugins for building and maintaining the Lynk semantic layer.",
-    "pluginRoot": "./plugins"
+    "pluginRoot": "./plugins",
+    "version": "1.1.0"
   },
   "plugins": [
     {
@@ -15,6 +16,7 @@
         "repo": "lynk-ai/build-agent"
       },
       "description": "Build, edit, evaluate, validate, and ask read-only questions about a Lynk semantic layer in .lynk/, plus inspect data sources via the Lynk API — entities, metrics, features, relationships, glossary, domains, context files, backend validity checks, source schema/field inspection, and Q&A on Lynk concepts.",
+      "version": "1.1.0",
       "category": "semantic-layer",
       "keywords": ["lynk", "semantic-layer", "modeling", "evaluation", "validation", "data-catalog", "data"]
     }

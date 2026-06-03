@@ -89,9 +89,9 @@ Two shapes of the same problem — names without definitions, or definitions imp
 **6a. Forward references — every name resolves.** Every metric, feature, entity, or relationship *named* in markdown, examples, or `evaluations.yml` must resolve to a definition in some YAML.
 
 Check for:
-- A metric referenced as `metric('total_arr')` in an example → must exist in some entity's `metrics:`.
+- A metric referenced as `METRIC('total_arr')` in an example → must exist in some entity's `metrics:`.
 - A feature referenced in a knowledge file (`use the customer_lifetime_value field`) → must exist in the entity's `features:`.
-- An entity referenced in a join, evaluation, or example (`FROM entity('subscription')`) → must have its own YAML.
+- An entity referenced in a join, evaluation, or example (`FROM subscription`, `JOIN subscription`) → must have its own YAML.
 - A `join_name` used in a feature → must exist in `entities_relationships.yml`.
 
 **Severity: `error`.** A broken reference means the agent will fail to resolve a query — this is not a style issue.
@@ -124,6 +124,43 @@ Every SQL snippet in `.lynk/` must be valid in the warehouse engine the user run
 
 ---
 
+## 8. Lynk SQL syntax — examples vs feature definitions
+
+Lynk uses two SQL surfaces that look similar but apply in different contexts: **feature-definition `sql:`** (features referenced via `{feature_name}` curly braces, resolved by the Lynk engine at compile time) and **`expected_output` / task-instruction / knowledge SQL** (features as bare names — the SQL the agent should *generate*). Mixing them is the most common source of broken `expected_output` and agent drift.
+
+This rulebook does not duplicate the SQL spec. Before writing or scanning Lynk SQL, fetch:
+
+- `https://docs.getlynk.ai/api/lynk-sql.md` — entity references, `METRIC()`, joins, supported statements
+- `https://docs.getlynk.ai/file-types/entity-yaml.md` — curly-brace rules in feature-definition `sql:` and metric-over-metric composition
+- `https://docs.getlynk.ai/file-types/evaluations-yaml.md` — canonical `expected_output` syntax
+- `https://docs.getlynk.ai/file-types/task-instructions-md.md` — SQL example conventions inside task-instructions markdown
+- `https://docs.getlynk.ai/file-types/relationships-yaml.md` — relationship `sql:` syntax (`{source}.{field}` / `{destination}.{field}`)
+
+**In `lynk-build`** — fetch the docs above before writing any SQL; write canonical Lynk SQL from the start. Do not rely on memory; the SQL surface has changed before and may again.
+
+**In `lynk-evaluate`** — fetch the docs above before scanning, then flag any SQL that doesn't match what the current docs say is valid. **Severity: `error`** for surface violations (SQL the engine will not parse). **Severity: `warning`** for forms that may still execute but drift from canonical Lynk SQL and risk causing the agent to reproduce the non-canonical pattern. Cite the relevant docs URL in the suggested fix.
+
+The docs are the source of truth; on any disagreement between a YAML file and the docs, the docs win.
+
+---
+
+## 9. Domain coherence — content scoped to a domain stays on-topic
+
+A file scoped to a named domain (`domain: "marketing"`, `domain: "finance"`, etc.) must (a) have a description of what the domain is about, and (b) hold only content topically aligned with that description. Both requirements — the structural one and the on-topic one — are spelled out in the [knowledge file spec](https://docs.getlynk.ai/file-types/knowledge-md) (Level 2). Apply per that spec; this rule covers only the action protocol when violations are found.
+
+**Fix scopes** (when content fails the on-topic check):
+- **Cross-domain** (applies in this domain *and* others) → relocate to `domain: "*"` so every domain inherits it.
+- **Belongs to a different single domain** (a finance rule in a marketing file) → relocate to that domain's file.
+- **Speculative / nowhere yet** → flag and ask the user whether to keep, relocate, or remove.
+
+**In `lynk-build`** — when adding to a named-domain file, check the existing description and confirm the new content fits. Surface any off-topic sections you notice while reading and offer relocation in the same plan (Rule 3 protocol).
+
+**In `lynk-evaluate`** — flag findings under the `domain-coherence` check group. Quote the offending section's heading and the domain description, and let the user judge.
+
+**Severity: `warning`.** Escalate to **`needs-client-input`** when topical fit is genuinely ambiguous (the section could plausibly belong to two domains, or the description is too vague to anchor the check) — the agent doesn't have authority to decide topical scope unilaterally.
+
+---
+
 ## Quick check before saving / before closing an audit
 
 For each file you touched (build) or read (evaluate), ask:
@@ -134,5 +171,7 @@ For each file you touched (build) or read (evaluate), ask:
 4. **Internally consistent?** — Do the definitions in this file agree with related files in meaning, not just in style (Rule 5)?
 5. **All references resolve?** — Does every named feature, metric, entity, or relationship exist in some YAML (Rule 6a)? Does every concept the prose implies have a backing definition (Rule 6b)?
 6. **Engine-compatible SQL?** — Does every SQL snippet use only constructs valid in the warehouse engine declared in `.lynk/config.json` (Rule 7)?
+7. **Lynk SQL syntax correct for context?** — Does every SQL snippet match the canonical form specified in the docs linked from Rule 8 (`{feature_name}` references in feature-definition `sql:`; bare features, bare entities, and canonical `METRIC()` / join forms in `expected_output` and SQL examples)?
+8. **Domain on-topic?** — For files scoped to a named domain: does the file have a domain description, and does each section fit it (Rule 9)?
 
 If the answer to any of these is "no" or "I'm not sure," the work isn't done.
