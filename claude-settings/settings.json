@@ -10,6 +10,15 @@
     "command": ".claude/statusline.sh"
   },
   "autoUpdatesChannel": "stable",
+  "extraKnownMarketplaces": {
+    "lynk": {
+      "source": {
+        "source": "github",
+        "repo": "lynk-ai/build-agent"
+      },
+      "autoUpdate": true
+    }
+  },
   "feedbackSurveyRate": 0,
   "companyAnnouncements": [
     " _   __   __ _  _ _  __\n| |  \\ \\ / /| \\| | |/ /\n| |__ \\ V / | .` | ' <\n|____| |_|  |_|\\_|_|\\_\\\n\nWelcome to Lynk Semantics!"

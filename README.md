@@ -4,12 +4,31 @@ A Claude Code plugin marketplace for the [Lynk](https://docs.getlynk.ai) semanti
 
 ## Install
 
-### From GitHub (recommended)
+### With the bundled Claude Code settings (recommended)
+
+If you're using the `claude-settings/settings.json` from this repo, the `lynk` marketplace is pre-registered (with auto-updates enabled) via `extraKnownMarketplaces`. Just install the plugin:
+
+```
+/plugin install lynk-semantic-layer@lynk
+```
+
+### Manual install from GitHub
+
+*Only needed if you're **not** using the bundled `claude-settings/settings.json`.*
+
+Register the marketplace and install the plugin:
 
 ```
 /plugin marketplace add lynk-ai/build-agent
 /plugin install lynk-semantic-layer@lynk
 ```
+
+Then enable auto-updates from Claude Code:
+
+1. Run `/plugin`
+2. Open the **Marketplaces** tab
+3. Select **lynk**
+4. Choose **Enable auto-update**
 
 ### From a local clone
 
