@@ -68,17 +68,33 @@ If it is not clear, check with the user before moving forward.
 #### Detect the SQL engine
 Read `.lynk/config.json` for an `engine`, `dialect`, or `warehouse` field (common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`). If the field is missing, empty, or the file doesn't exist, ask the user via `AskUserQuestion` — do not guess. The dialect drives Rule 7 of `references/content-rules.md`: every SQL snippet you write must be valid in that engine.
 
-### 5. Get source-table fields when modeling entities
+### 5. Ground the model in the real source — fields first, then the key
 
-When the user wants to add or extend an entity, you need the source table's actual columns to ground the model in real data. Three ways to get them, in order of preference:
+When the user wants to add or extend an entity, model against the source's **actual** columns, description, and keys — never guesses. The catalog already holds all of this, so the default is to go get it, not to ask the user how. Open an `AskUserQuestion` about *how* to obtain columns only when the catalog genuinely can't answer (table still not found after a sync) or the user has said they'd rather paste — not as the opening move.
 
-- **From the Lynk catalog (preferred)** — delegate to `lynk-sources` to fetch the source's columns. If the source isn't in the catalog yet, lynk-sources will run `POST /api/data-catalog/sources/sync` to pick it up.
-- **From user-provided files** — if the user attached or pasted CSV, text, or document files, use those instead.
-- **Ask the user** — as a last resort, ask the user to paste the source table's column list (`AskUserQuestion`). Do not guess column names.
+#### Fetch and read the source
+
+Delegate to `lynk-sources` to pull the source's `description`, `keys`, column count, and column list. Do this before planning — it's the grounding pass.
+
+- **Table name resolves** → surface the table `description` (if any) and the column types/descriptions, so the model reflects what the data *means*, not just column names.
+- **Table name doesn't resolve** → don't punt to the user yet. Recommend the closest-matching catalog table name, or offer to run a `sync` (a table added since the last sync won't appear until then). Fall back to asking the user to paste columns only if it still can't be found.
+- **Wide table (roughly ≥40 columns)** → don't dump every column or ask the user how to proceed. Lead with a recommended next step: model the core subset the entity's questions actually need first, or group the columns by theme and confirm the grouping. Recommend; don't offload the whole decision.
+- **User-provided files** — if the user attached or pasted CSV/text/docs, use those as the column source instead of (or alongside) the catalog.
 
 If the user says "I added fields to X" or "columns of X changed", delegate to `lynk-sources` to sync, refetch fields, and reconcile any field features whose source columns no longer exist.
 
 **Announce the source-fetch step for multi-field adds (≥5 fields).** Before delegating to `lynk-sources`, tell the user explicitly: *"Fetching current source columns via `lynk-sources` first — grounding against the live catalog so we don't model fields that no longer exist or miss ones that were just added."* The user should see the workflow happen, not have to ask afterwards whether the skill grounded itself.
+
+#### Choose the entity key (Rule 11)
+
+`keys` is **mandatory** and must *uniquely identify a row* — each instance appears exactly once in the `key_source` (entity-yaml docs). One or more columns are allowed, so a composite key is valid. A `keys` that names a column which isn't actually unique is **worse than no key**: it's a false grain claim that silently corrupts dedup, joins, and distinct counts downstream. So source the key from real data — never fabricate one to satisfy the schema:
+
+1. **Catalog reports `keys`** → use them as-is.
+2. **Catalog `keys` is empty** → derive a candidate (a single id-like column, or a composite that should be unique at the table's grain) and **verify it** by delegating to `lynk-sources` to run `SELECT COUNT(*) AS rows, COUNT(DISTINCT <candidate>) AS distinct_rows FROM <table>` (for a composite, count the distinct concatenation). It is a real key iff `rows == distinct_rows` and the candidate is non-null.
+3. **Communicate each attempt as you go** — e.g. *"No key in the catalog for `events`; verifying `interaction_element_id` as a candidate key via a count query…"* then report the result. The user should see the reasoning, not just a final verdict.
+4. **Try at most 3 candidates.** If one verifies unique, use it and state it was *verified*, not assumed. If 3 candidates all fail (`distinct_rows < rows`), **stop guessing and escalate** via `AskUserQuestion` with the real options — a composite the user knows is unique, an upstream surrogate key, or reconsidering whether this table is the right grain for an entity — and explain that Lynk requires a key that uniquely identifies a row, which is why an arbitrary column won't do.
+
+Many event / fact tables have no single unique column; that's expected. The right move is a verified composite key or an honest escalation — not promoting a non-unique column to key status.
 
 ### 6. Plan and confirm
 
@@ -91,6 +107,7 @@ Before drafting the plan, apply `references/content-rules.md` to the proposed ch
 - **Rule 8 (Lynk SQL syntax)** — fetch the docs listed in Rule 8 of `references/content-rules.md` before writing SQL and follow their spec for the relevant context (feature-definition `sql:` vs `expected_output` / task-instruction / knowledge SQL). Do not rely on memory.
 - **Rule 9 (domain coherence)** — when editing a file scoped to a named domain (not `*`), confirm the file has a domain description and the new content fits it. Missing description or off-topic content → offer to draft / relocate in this same plan, per Rule 9.
 - **Rule 10 (examples & evaluations)** — when the change creates or edits an entity `examples:` entry, an `evaluations.yml` test case, or a SQL example inside task-instructions / knowledge, validate the SQL against **all five** points of Rule 10 *before writing it*: (1) valid in the detected engine dialect (Step 4); (2) canonical generated-SQL surface (bare entity/features, `METRIC('x') AS x`, no `{…}`); (3) every entity/feature/metric referenced exists **and is queryable** — never reference a private `_`-prefixed feature (`_is_…`, `_key`) in generated SQL; route it through the public column, a `METRIC()`, or a newly-exposed public field; (4) the SQL semantically answers its `input`; (5) it contradicts no default filter / metric / window declared in the relevant task-instructions, knowledge, or glossary. State in the plan that you applied Rule 10 to any example/evaluation you're adding.
+- **Rule 11 (entity keys)** — when the change creates an entity or sets/changes its `keys:`, the key must be catalog-reported or verified unique via the Step 5 count-query loop (max 3 candidate attempts) — never a non-unique column fabricated to satisfy the schema. If no candidate verified unique, the plan must escalate the key choice to the user, not pick one.
 
 ### 7. Execute step by step
 

@@ -187,6 +187,22 @@ Tag findings `local/content-rules-10`, except use the more specific underlying r
 
 ---
 
+## 11. Entity keys must actually identify a row
+
+Every entity's `keys` is **mandatory** and names the column(s) that *uniquely identify a row* — Lynk's granularity contract is that each instance appears exactly once in the `key_source`. One or more columns are allowed, so a composite key is valid; there is **no keyless entity**, and leaving `keys` empty fails validation.
+
+The failure this rule catches is a **fabricated key**: a `keys` entry whose column(s) resolve fine (so Rule 6 passes) but aren't actually unique at the table's grain. This is common on event / fact tables with no single unique column — pressured to fill the mandatory field, an agent may promote an arbitrary non-unique column (e.g. `interaction_element_id` on an events table) and rationalize it as "harmless." It isn't: a key that isn't unique is *worse* than a missing one — it's a false grain claim that silently corrupts dedup, joins, and distinct-count results downstream. The right key for such a table is a verified composite, or — if none exists — an honest escalation, never an arbitrary column.
+
+**In `lynk-build`** — source the key from real data: use the catalog's reported `keys`, or derive a candidate and verify it with a `COUNT(*)` vs `COUNT(DISTINCT keys)` query before committing it (build Step 5, capped at 3 candidate attempts, narrating each attempt). Never fabricate a key to satisfy the schema; if no candidate verifies unique, escalate the choice to the user rather than picking one.
+
+**In `lynk-evaluate`** — flag a `keys` that has no uniqueness backing:
+   - **Static suspicion — `needs-client-input`.** Uniqueness is a property of the data, so static analysis can only *suspect*. Raise it when: the catalog reports no `keys` for the source yet the entity declares one; or the entity's own description / knowledge calls the source an event / log / activity stream (grains that rarely have a single unique column) and `keys` is a single non-id-looking column. Surface the candidate and the reason.
+   - **Authoritative check — `error`.** Run `SELECT COUNT(*) AS rows, COUNT(DISTINCT keys) AS distinct_rows FROM <key_source>` via the query engine (lynk-evaluate Step 7). `distinct_rows < rows` → the key is not unique → **error**. This confirms what Rule 6 can't: a declared, resolvable key that is nonetheless invalid.
+
+Tag findings `local/content-rules-11`.
+
+---
+
 ## Quick check before saving / before closing an audit
 
 For each file you touched (build) or read (evaluate), ask:
@@ -200,5 +216,6 @@ For each file you touched (build) or read (evaluate), ask:
 7. **Lynk SQL syntax correct for context?** — Does every SQL snippet match the canonical form specified in the docs linked from Rule 8 (`{feature_name}` references in feature-definition `sql:`; bare features, bare entities, and canonical `METRIC()` / join forms in `expected_output` and SQL examples)?
 8. **Domain on-topic?** — For files scoped to a named domain: does the file have a domain description, and does each section fit it (Rule 9)?
 9. **Examples & evaluations valid?** — For every entity `examples:` entry, every `evaluations.yml` case, and every SQL example in task-instructions / knowledge: right dialect, canonical surface, all references exist **and are queryable** (no private `_`-prefixed features in generated SQL), semantically answers its `input`, and contradicts no context default (Rule 10)?
+10. **Keys real?** — Does every entity's `keys:` actually identify a row — catalog-reported or verified unique — rather than a fabricated non-unique column (Rule 11)?
 
 If the answer to any of these is "no" or "I'm not sure," the work isn't done.
