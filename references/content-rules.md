@@ -93,6 +93,7 @@ Check for:
 - A feature referenced in a knowledge file (`use the customer_lifetime_value field`) → must exist in the entity's `features:`.
 - An entity referenced in a join, evaluation, or example (`FROM subscription`, `JOIN subscription`) → must have its own YAML.
 - A `join_name` used in a feature → must exist in `entities_relationships.yml`.
+- A feature used in **agent-generated SQL** (`expected_output`, entity `examples:`, task-instruction / knowledge SQL, any `SELECT` / `WHERE` / `GROUP BY`) must not only *exist* but be **queryable** — internal/private features (Rule 10) resolve only inside feature-definition `{…}` SQL and break the query if referenced in generated SQL.
 
 **Severity: `error`.** A broken reference means the agent will fail to resolve a query — this is not a style issue.
 
@@ -136,6 +137,8 @@ This rulebook does not duplicate the SQL spec. Before writing or scanning Lynk S
 - `https://docs.getlynk.ai/file-types/task-instructions-md.md` — SQL example conventions inside task-instructions markdown
 - `https://docs.getlynk.ai/file-types/relationships-yaml.md` — relationship `sql:` syntax (`{source}.{field}` / `{destination}.{field}`)
 
+**Private features are a surface violation in generated SQL.** Beyond the two-surface rule above, a generated-SQL snippet (`expected_output`, entity `examples:`, task-instruction / knowledge SQL) must reference only *queryable* features. Internal/private features — by this layer's convention, those whose `name:` begins with an underscore (`_is_…`, `_key`) — are valid **only** inside feature-definition `{…}` SQL; referencing them bare in generated SQL makes the engine fail to resolve the entity. See Rule 10 (point 3) for the detection recipe and fixes.
+
 **In `lynk-build`** — fetch the docs above before writing any SQL; write canonical Lynk SQL from the start. Do not rely on memory; the SQL surface has changed before and may again.
 
 **In `lynk-evaluate`** — fetch the docs above before scanning, then flag any SQL that doesn't match what the current docs say is valid. **Severity: `error`** for surface violations (SQL the engine will not parse). **Severity: `warning`** for forms that may still execute but drift from canonical Lynk SQL and risk causing the agent to reproduce the non-canonical pattern. Cite the relevant docs URL in the suggested fix.
@@ -161,6 +164,29 @@ A file scoped to a named domain (`domain: "marketing"`, `domain: "finance"`, etc
 
 ---
 
+## 10. Examples and evaluations must be valid, runnable, and self-consistent
+
+Examples and evaluations are the highest-leverage content in the layer: the agent reuses their shape as in-context patterns, so a broken or misleading one doesn't just fail its own case — it teaches the agent to generate the same broken SQL on live questions. This rule governs **every piece of agent-facing query SQL**:
+
+- every entry under `examples:` in an entity YAML (`input` / `expected_output`),
+- every test case in `evaluations.yml` (`input` / `expected_output`),
+- every SQL example embedded in task-instruction and knowledge markdown.
+
+Each one must satisfy **all five** of the following. `lynk-build` validates them **before writing** an example/evaluation; `lynk-evaluate` checks 1–3 and 5 statically (Step 6) and confirms 1–4 by execution (Step 7).
+
+1. **Engine dialect (Rule 7).** Valid in the engine declared in `.lynk/config.json`; no constructs borrowed from another dialect.
+2. **Lynk SQL surface (Rule 8).** Canonical generated-SQL form — bare entity in `FROM`, bare feature names in `SELECT` / `WHERE` / `GROUP BY`, `METRIC('name') AS alias` (every `METRIC()` aliased), and **no** `{curly_brace}` references (those belong only in feature-definition `sql:`).
+3. **Every reference exists *and is queryable* (extends Rule 6a).** Every entity, feature, and metric named must resolve to a YAML definition **and** be referenceable in generated SQL. Not every declared feature is queryable: Lynk keeps *internal/private* features out of the query surface. By the convention this layer uses, a feature whose `name:` begins with an underscore (`_is_…`, `_key`, …) is internal — it resolves **only** inside feature-definition `{…}` SQL (metric / formula / `first_last` filter / join). Referencing one in generated SQL makes the engine fail to resolve the whole entity (observed: `Error during planning: table '<db>.<schema>.<entity>' not found`, or `Feature '_x' does not exist in entity '<e>'`).
+   - **Static detection:** for each entity, collect the `name:` values that begin with `_`; flag any bare occurrence of one in agent-facing SQL (inside a `SELECT`, `WHERE`, `GROUP BY`, `IFF(...)`, or an aggregate argument). Mechanical — needs no warehouse.
+   - **Authoritative check:** executing the SQL (`lynk-evaluate` Step 7). A private-feature reference fails at plan time even though a naive "is it declared?" check passes — which is why static reference-integrity (Rule 6a) alone is not enough. The docs do not currently document this public/private distinction, so runtime behavior and this convention govern; defer to the docs if they later specify which features are queryable.
+   - **Fix:** replace the private reference with (a) the public column it mirrors, via its rollup/literal field (e.g. `LOWER(TRIM(sku_status)) = 'available to capture'` instead of `_is_sku_status_available_to_capture`); (b) a `METRIC()` that already encapsulates the flag; or (c) a newly-exposed **public** (non-`_`) field feature pointing at the same source column. **Severity: `error`** — the SQL will not run.
+4. **Semantically correct — `input` ↔ `expected_output`.** The SQL answers the question the `input` asks: its filters, grouping, metric/dimension selection, and time window match the ask. **Severity: `warning`**, escalate to **`error`** when the SQL tests a different entity / metric / dimension than the `input` requests.
+5. **No context contradiction (Rule 5).** The SQL honors the default filters, metric choices, ordering, and time windows the owning entity's and domain's task-instructions, knowledge, and glossary declare for that question type. A divergence is a Rule 5 contradiction — **needs-client-input** if the example may be intentionally testing the non-default path, otherwise **`error`**.
+
+Tag findings `local/content-rules-10`, except use the more specific underlying rule when that is the precise cause — `-6` (missing reference), `-7` (dialect), `-8` (surface). A failure surfaced by execution also carries `local/examples-runtime` with the engine's `error_type` / `message`.
+
+---
+
 ## Quick check before saving / before closing an audit
 
 For each file you touched (build) or read (evaluate), ask:
@@ -173,5 +199,6 @@ For each file you touched (build) or read (evaluate), ask:
 6. **Engine-compatible SQL?** — Does every SQL snippet use only constructs valid in the warehouse engine declared in `.lynk/config.json` (Rule 7)?
 7. **Lynk SQL syntax correct for context?** — Does every SQL snippet match the canonical form specified in the docs linked from Rule 8 (`{feature_name}` references in feature-definition `sql:`; bare features, bare entities, and canonical `METRIC()` / join forms in `expected_output` and SQL examples)?
 8. **Domain on-topic?** — For files scoped to a named domain: does the file have a domain description, and does each section fit it (Rule 9)?
+9. **Examples & evaluations valid?** — For every entity `examples:` entry, every `evaluations.yml` case, and every SQL example in task-instructions / knowledge: right dialect, canonical surface, all references exist **and are queryable** (no private `_`-prefixed features in generated SQL), semantically answers its `input`, and contradicts no context default (Rule 10)?
 
 If the answer to any of these is "no" or "I'm not sure," the work isn't done.

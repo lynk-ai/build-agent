@@ -1,7 +1,7 @@
 {
   "name": "lynk-semantic-layer",
   "description": "Build, edit, evaluate, validate, and answer questions about the Lynk semantic layer in .lynk/, plus inspect data sources via the Lynk API. Ships five skills — lynk-build, lynk-evaluate, lynk-validate, lynk-sources, and lynk-ask — covering entities, metrics, features, relationships, glossary, domains, context files, backend validity checks, source schema/field inspection, and read-only Q&A on instances and Lynk concepts.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": {
     "name": "Lynk"
   },
