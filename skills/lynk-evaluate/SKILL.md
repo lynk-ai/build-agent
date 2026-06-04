@@ -79,7 +79,7 @@ For multi-entity evaluation (seed + related), read `entities_relationships.yml` 
 
 ### 4. Read the relevant docs and detect the SQL engine
 
-- **Always fetch `https://docs.getlynk.ai/llms.txt` first** to see the doc tree — the placement check (Rule 2 of `references/content-rules.md`) in Step 6 depends on knowing what file-type specs exist. Then `WebFetch` only the `concepts/<concept>` and `file-types/<type>` pages relevant to the targets in Step 2.
+- **Always fetch `https://docs.getlynk.ai/llms.txt` first** to see the doc tree — the placement check (Rule 2 of `references/content-rules.md`) in Step 6 depends on knowing what file-type specs exist. Then `WebFetch` only the `concepts/<concept>` and `file-types/<type>` pages relevant to the targets in Step 2. (The doc-navigation convention is in `references/lynk-docs.md`.)
 - **Detect the engine.** Read `.lynk/config.json` and look for an `engine`, `dialect`, or `warehouse` field. Common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`. If the field is missing, empty, or the file doesn't exist, ask the user via `AskUserQuestion` — do not guess. Record the dialect; every SQL check in Step 6 keys off it.
 
 ---

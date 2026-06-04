@@ -4,6 +4,22 @@ These rules govern every edit (`lynk-build`) and every audit (`lynk-evaluate`) o
 
 The rules are prescriptive: each one says what good looks like and what the agent must do when it sees a violation.
 
+## Rules at a glance
+
+1. Single source of truth — each definition lives in exactly one file
+2. The right place is whatever the docs say — placement per the file-type spec
+3. Misplaced content gets offered for relocation, not silently accepted
+4. Every description and instruction must be meaningful and clear
+5. Cross-file consistency — no contradictions
+6. Reference & content integrity — names resolve (6a); nothing implied-but-undefined (6b)
+7. Engine compatibility — SQL must run on the warehouse
+8. Lynk SQL syntax — examples vs feature definitions
+9. Domain coherence — content scoped to a domain stays on-topic
+10. Examples and evaluations must be valid, runnable, and self-consistent
+11. Entity keys must actually identify a row
+
+`lynk-evaluate` tags each finding `local/content-rules-<N>` with the rule number. The **Quick check** at the end is the minimum coverage before saving (build) or closing an audit (evaluate).
+
 ---
 
 ## 1. Single source of truth

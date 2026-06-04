@@ -26,6 +26,8 @@ description: >
 
 - Fetch `https://docs.getlynk.ai/concepts.md` to understand the Core Vocabulary and Semantic Layer structure — what Lynk primitives exist: Entity, Feature, Metric, Relationship, Glossary, Domain, Context (knowledge / task-instructions / clarification policy / output format).
 
+For how to navigate the docs (the two anchor pages and walking from the index to leaf pages), see `references/lynk-docs.md`.
+
 ### 2. Understand the user's request
 
 From the user's request, determine:

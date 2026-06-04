@@ -40,6 +40,8 @@ Always do this **first**, before classification or `.lynk/` reads. Two fetches:
 1. Docs tree — `WebFetch https://docs.getlynk.ai/llms.txt`
 2. Concepts grounding — `WebFetch https://docs.getlynk.ai/concepts.md`
 
+These two anchors and how to walk from the index to leaf pages are the doc-navigation convention written up in `references/lynk-docs.md`.
+
 This grounds every answer in correct Lynk vocabulary and gives you a map of doc pages to navigate to next. Skipping this step is what causes the most common failure mode for this skill — confidently confusing related primitives (e.g., treating a *metric feature* as a standalone *metric*) because general analytics vocabulary doesn't preserve Lynk's distinctions.
 
 ### 2. Classify the question

@@ -8,6 +8,19 @@ This reference is a work in progress. Endpoints, request/response shapes, and fi
 
 ---
 
+## Contents
+
+Conventions (read once): [Base URL](#base-url) · [Authentication](#authentication) · [Standard request headers](#standard-request-headers) · [Response shape](#response-shape)
+
+Endpoints:
+- **Semantics** — `POST /semantics/validate` (used by `lynk-validate`, `lynk-evaluate`)
+- **Integrations — Schemas** — `GET /integrations/data/schemas`
+- **Data Catalog — Sources** — `GET /data-catalog/sources` · `GET /data-catalog/sources/{key_source}` · `POST /data-catalog/sources/sync` (used by `lynk-sources`, `lynk-build`)
+- **Query Engine** — `POST /query-engine/query` (run Lynk SQL; used by `lynk-sources`, `lynk-evaluate`)
+- [Related Reference](#related-reference)
+
+---
+
 ## Base URL
 
 | Environment | Base URL | When |
