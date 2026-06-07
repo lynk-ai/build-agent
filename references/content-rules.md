@@ -17,6 +17,7 @@ The rules are prescriptive: each one says what good looks like and what the agen
 9. Domain coherence — content scoped to a domain stays on-topic
 10. Examples and evaluations must be valid, runnable, and self-consistent
 11. Entity keys must actually identify a row
+12. `related_sources` must not shadow — or be aggregated as — an entity
 
 `lynk-evaluate` tags each finding `local/content-rules-<N>` with the rule number. The **Quick check** at the end is the minimum coverage before saving (build) or closing an audit (evaluate).
 
@@ -135,6 +136,10 @@ Every SQL snippet in `.lynk/` must be valid in the warehouse engine the user run
 - Window-function syntax, `EXCEPT` vs `MINUS`, `LIMIT` placement — vary across engines.
 - Implicit type coercion behavior differs (e.g. comparing string to integer); be explicit.
 
+**Window functions — where they're allowed:** a window function (`ROW_NUMBER`, `RANK`, `LAG`, `OVER (PARTITION BY …)`) is valid in a `formula` feature's `sql:` (it produces a per-row value) and in `expected_output` queries, but **not** in a metric's `sql:`. Don't downgrade a legitimate ranking formula to a "query recipe" on the assumption that formulas can't hold windows — they can. (Verified at runtime; confirmed by the formula section of the entity-YAML docs.)
+
+**Reserved-word source columns must be quoted.** If a field feature's `field:` is a SQL reserved word (e.g. `ORDER`, `ROW`, `VALUE`), quote it — `field: '"ORDER"'`. Identifiers pass through unquoted, so an unquoted reserved word fails to compile at query time (and `validate` won't catch it). When a build/eval query 502s with `unexpected '<WORD>'`, suspect a reserved-word column before suspecting the surrounding construct (e.g. a window function).
+
 **In `lynk-build`** — write SQL using the detected engine's syntax from the start. When a portable form exists, prefer it over an engine-specific shortcut. Don't assume a dialect; if engine isn't yet detected, detect first.
 
 **In `lynk-evaluate`** — scan every SQL snippet against the detected engine and flag dialect-incompatible constructs. **Severity: `error`.** The SQL will fail at runtime, not at parse time, so the user won't see the issue until they run a query.
@@ -219,6 +224,24 @@ Tag findings `local/content-rules-11`.
 
 ---
 
+## 12. `related_sources` must not shadow — or be aggregated as — an entity
+
+A `related_source` is **enrichment only**: a flat secondary table with no entity of its own, joined to pull a column or pick one row — never aggregated. Two failures fall under this rule, and both are silent: the YAML resolves, so Rules 2 and 6 pass, yet the model is wrong. The [entity-yaml spec](https://docs.getlynk.ai/file-types/entity-yaml.md) states both ("Only use `related_sources` for tables that are NOT the `key_source` of any entity"; metrics on a related_source are "No — promote the table to an entity instead"); this rule makes them a mechanical check.
+
+**12a. The `related_source` table is also an entity's `key_source` (shadowing).** If a table is the `key_source` of any entity, reach it through `entities_relationships.yml` (a relationship + `source: <entity>` on the feature), never as a `related_source`. A related_source that shadows an entity forks the table into two parallel representations — the entity's metrics/features and the related_source's fields drift, and the agent can't use the entity's metrics through that path.
+
+- **Static detection (mechanical, no warehouse):** for every table under any entity's `related_sources:`, grep for it as a `key_source`. If it appears, it's a violation. `! grep -rn "key_source:" .lynk/ | grep -i "<related_source_table>"`
+- **Fix:** remove the `related_source`; add the relationship in `entities_relationships.yml`; repoint features that used the table to `source: <entity_name>` with the relationship's `join_name` (`field` / `first_last`), or to a `metric` feature if you were aggregating it (see 12b). **Severity: `error`.**
+
+**12b. A `related_source` is being aggregated.** `related_sources` support only `field` and `first_last` features — never metrics. If any entity metric (or any `sql:`) counts / sums / averages a column sourced from a `related_source`, that table must be promoted to an entity with its own metrics, then chained in as a `metric` feature.
+
+- **Static detection:** for each `related_source` on an entity, collect the `name:` of every `field` / `first_last` feature whose `source:` is that table; flag any entity `metrics:` `sql:` that references one of those `{names}` inside an aggregate (`COUNT` / `SUM` / `AVG` / …).
+- **Fix:** create an entity whose `key_source` is the table, move the aggregation there as an entity metric, add a relationship, and pull the result onto the original entity as a `metric` feature. **Severity: `error`.**
+
+Tag findings `local/content-rules-12`.
+
+---
+
 ## Quick check before saving / before closing an audit
 
 For each file you touched (build) or read (evaluate), ask:
@@ -233,5 +256,6 @@ For each file you touched (build) or read (evaluate), ask:
 8. **Domain on-topic?** — For files scoped to a named domain: does the file have a domain description, and does each section fit it (Rule 9)?
 9. **Examples & evaluations valid?** — For every entity `examples:` entry, every `evaluations.yml` case, and every SQL example in task-instructions / knowledge: right dialect, canonical surface, all references exist **and are queryable** (no private `_`-prefixed features in generated SQL), semantically answers its `input`, and contradicts no context default (Rule 10)?
 10. **Keys real?** — Does every entity's `keys:` actually identify a row — catalog-reported or verified unique — rather than a fabricated non-unique column (Rule 11)?
+11. **Related-sources legit?** — Is every `related_sources` table free of an entity `key_source` (not shadowing an entity) and never aggregated by a metric (Rule 12)?
 
 If the answer to any of these is "no" or "I'm not sure," the work isn't done.
