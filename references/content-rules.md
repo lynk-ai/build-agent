@@ -35,6 +35,8 @@ When auditing, flag any content that appears in two places (verbatim or near-ver
 
 **Severity: `warning`.** Duplicates will drift over time. If two copies *already contradict each other*, escalate as a Rule 5 contradiction (`needs-client-input`) — the contradiction is more urgent than the duplication.
 
+**Scoping one file to several entities.** When content applies to a *set* of entities — not a single entity, and not the whole domain — scope one knowledge/task-instructions file to them with a list (`entity: [a, b, c]`) rather than cloning the content into each entity's files. The file loads when **any** listed entity is queried. This is the multi-entity home that avoids duplication; confirmed honored at runtime (see the file-type specs' frontmatter tables).
+
 ---
 
 ## 2. The right place is whatever the docs say
@@ -120,6 +122,12 @@ Check for:
 - The glossary defines a term that no entity, metric, or feature surfaces.
 
 **Severity: `warning`.** The agent will be unable to answer cleanly when asked about something the prose says exists.
+
+**6c. Entity keys reference feature names.** Every entry in an entity's `keys:` must be the `name:` of a feature in that entity's `features:` — **not** a raw warehouse column. A raw-column key that shares a name with a feature (case-insensitively) makes the generated CTE project that column twice → `ambiguous column name` at query time. So: every key column needs a `field` feature, and `keys:` lists that feature's name (e.g. `keys: [vertical]` with a `vertical` feature on column `VERTICAL` — never `keys: [VERTICAL]`).
+
+**Severity: `error`.** Dimensional queries on the entity fail at runtime (and backend `validate` does not catch it — only a query does).
+
+> **Current engine caveat:** the consuming CTE still references key features by *column* name, so a feature-name key only resolves cleanly when the **feature name equals its column name** (`vertical`↔`VERTICAL`). If the key column's feature is *renamed* (e.g. feature `send_id` on column `ID`), a feature-name key (`keys: [send_id]`) currently errors with `invalid identifier KEYS.ID` — until that engine bug is fixed, give such key columns a feature whose name matches the column (e.g. an `id` feature on `ID`) and key on that. Flag, don't silently leave a raw-column key.
 
 ---
 
