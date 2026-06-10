@@ -127,7 +127,7 @@ Check for:
 
 **Severity: `error`.** Dimensional queries on the entity fail at runtime (and backend `validate` does not catch it — only a query does).
 
-> **Current engine caveat:** the consuming CTE still references key features by *column* name, so a feature-name key only resolves cleanly when the **feature name equals its column name** (`vertical`↔`VERTICAL`). If the key column's feature is *renamed* (e.g. feature `send_id` on column `ID`), a feature-name key (`keys: [send_id]`) currently errors with `invalid identifier KEYS.ID` — until that engine bug is fixed, give such key columns a feature whose name matches the column (e.g. an `id` feature on `ID`) and key on that. Flag, don't silently leave a raw-column key.
+> **Current engine caveat (confirmed live):** the consuming CTE still references key features by *column* name, so a feature-name key only resolves cleanly when the **feature name equals its column name** (`vertical`↔`VERTICAL`). If the key column's feature is *renamed* (e.g. feature `send_id` on column `ID`), keying on it (`keys: [send_id]`) breaks the entity at build time — surfacing either as `invalid identifier KEYS.ID`, or (once the build proceeds past keys) as **every derived feature on the entity** failing with `'<feature>' cannot be queried` and any relationship off the entity failing with `cannot be joined` — while plain 1:1 `field` features still resolve. The fix: give such key columns a feature whose name matches the column (e.g. an `id` feature on `ID`, keeping the descriptive `send_id` feature for metrics/joins) and key on that. Flag, don't silently leave a raw-column or renamed-feature key.
 
 ---
 
@@ -258,7 +258,7 @@ For each file you touched (build) or read (evaluate), ask:
 2. **Clear and meaningful?** — Does each description / instruction tell the agent what to do (Rule 4)?
 3. **Appears once?** — Scan related files for the same content; flag duplicates (Rule 1).
 4. **Internally consistent?** — Do the definitions in this file agree with related files in meaning, not just in style (Rule 5)?
-5. **All references resolve?** — Does every named feature, metric, entity, or relationship exist in some YAML (Rule 6a)? Does every concept the prose implies have a backing definition (Rule 6b)?
+5. **All references resolve?** — Does every named feature, metric, entity, or relationship exist in some YAML (Rule 6a)? Does every concept the prose implies have a backing definition (Rule 6b)? Does every `keys:` entry name a **defined feature** (not a raw warehouse column), with that feature's `name` equal to its column to dodge the `KEYS.<COL>` engine bug (Rule 6c)?
 6. **Engine-compatible SQL?** — Does every SQL snippet use only constructs valid in the warehouse engine declared in `.lynk/config.json` (Rule 7)?
 7. **Lynk SQL syntax correct for context?** — Does every SQL snippet match the canonical form specified in the docs linked from Rule 8 (`{feature_name}` references in feature-definition `sql:`; bare features, bare entities, and canonical `METRIC()` / join forms in `expected_output` and SQL examples)?
 8. **Domain on-topic?** — For files scoped to a named domain: does the file have a domain description, and does each section fit it (Rule 9)?
