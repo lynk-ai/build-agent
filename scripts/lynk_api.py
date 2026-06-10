@@ -17,9 +17,9 @@ Usage:
   # Make an API call. Branch and domain are auto-filled — branch from
   # `git rev-parse --abbrev-ref HEAD` (fallback `main`), domain from `default`.
   # Pass --branch or --domain to override.
-  python scripts/lynk_api.py POST semantics/validate \
-      --query scope=all \
-      --query fail_on_warnings=false
+  python scripts/lynk_api.py POST semantics/builds \
+      --query branch=main \
+      --query force=false
 
   # Print canonical token-setup instructions (skills relay this verbatim)
   python scripts/lynk_api.py --print-setup
@@ -201,7 +201,7 @@ def main() -> int:
         choices=["GET", "POST", "PUT", "DELETE", "PATCH"],
         help="HTTP method (omit when using --save-token / --print-setup)",
     )
-    p.add_argument("route", nargs="?", help="Path under /api/, e.g. semantics/validate")
+    p.add_argument("route", nargs="?", help="Path under /api/, e.g. semantics/builds")
     p.add_argument("--header", action="append", help="key=value, repeatable")
     p.add_argument("--query", action="append", help="key=value, repeatable")
     p.add_argument("--data", help="Request body (raw JSON string)")

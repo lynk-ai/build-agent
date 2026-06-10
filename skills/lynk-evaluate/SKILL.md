@@ -171,7 +171,7 @@ Merge the backend issues from Step 5 with the static local findings from Step 6 
 
 **Source tag values.** Every finding carries one tag so the user can tell at a glance where it came from — the backend API, a local rule, a content-quality check, or the runtime execution. Five shapes:
 
-- `backend/<scope>/<category>` — raised by the `lynk-validate` API call in Step 5. `<scope>` is `entity` / `relationship` / `context`; `<category>` is `schema` / `semantic`.
+- `backend/<scope>/<category>` — raised by the `lynk-validate` API call in Step 5. `<scope>` is `entity` / `relationship` / `context`; `<category>` is `schema` (declarative YAML check) or `warehouse` (the backend ran a `LIMIT 0` probe and the engine rejected it). The `warehouse` category replaces the legacy `semantic` value — same tag shape, the enum just changed when validate moved to the builds endpoint.
 - `local/content-rules-<N>` — raised by a content rule in Step 6; `<N>` is the rule number (see the rule index at the top of `references/content-rules.md`). Note: Rule 3 is action protocol, not a detection — misplacement findings get tagged `content-rules-2` and cite Rule 3 in the suggested fix.
 - `local/yaml-sql-structure` — raised by the structural validation group in Step 6 (required fields, `{}` placeholders, `METRIC()` wrapping, no aggregates in formulas, no circular formulas, no duplicate keys).
 - `local/examples-quality` — raised by the examples & evaluations quality group in Step 6 for the *semantic-alignment* sub-checks (input ↔ expected_output coherence, description ↔ test alignment). The same group's validity & queryability sub-check is tagged `local/content-rules-10`, and its default-filter-consistency sub-check is tagged `local/content-rules-5`.

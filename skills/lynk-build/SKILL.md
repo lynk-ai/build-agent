@@ -127,7 +127,7 @@ This recap is the user's record of the work and the bridge into Step 8. Never sk
 
 Once all edits are saved, run the `lynk-evaluate` flow targeted at the artifact you just edited (the entity, glossary, or domain file from Step 7) — not the full graph. Evaluate already chains the backend `lynk-validate` call **and** owns the fix-offer + re-evaluation loop (capped at 3 attempts). Just present whatever evaluate returns; **do not** run a parallel fix loop here.
 
-**Never substitute a raw API call for the full `lynk-evaluate` flow.** Calling `POST /semantics/validate` directly (or via `lynk-validate` alone) only runs the backend schema check — it skips the content-rules layer (description quality, cross-file consistency, placement, Lynk SQL syntax, domain coherence) that `lynk-evaluate` adds on top. A "the edit was mechanical enough" reason is not sufficient grounds to substitute; the content-rules layer catches naming and placement issues that have nothing to do with how mechanical the change felt.
+**Never substitute a raw API call for the full `lynk-evaluate` flow.** Calling `POST /semantics/builds` directly (or via `lynk-validate` alone) only runs the backend schema + warehouse-probe check — it skips the content-rules layer (description quality, cross-file consistency, placement, Lynk SQL syntax, domain coherence) that `lynk-evaluate` adds on top. A "the edit was mechanical enough" reason is not sufficient grounds to substitute; the content-rules layer catches naming and placement issues that have nothing to do with how mechanical the change felt.
 
 Skip this step only if the user **explicitly** opted out ("just add the field, don't evaluate it"). Inferring discretion from the size or apparent simplicity of the edit is not opting out.
 
