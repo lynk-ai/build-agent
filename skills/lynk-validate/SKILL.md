@@ -1,19 +1,25 @@
 ---
 name: lynk-validate
 description: >
-  Validate the Lynk semantic layer in `.lynk/` against the Lynk backend by calling
-  `POST /api/semantics/validate`. Surfaces schema errors, broken source-field
-  references, and other server-side validity issues for a given branch.
+  Run the Lynk backend's **semantics build** (`POST /api/semantics/builds`) to
+  confirm the semantic layer in `.lynk/` on a committed branch is valid and ready
+  for the AI agent to use. Returns a build object with `status: valid|invalid`
+  and any issues — schema errors, broken source-field references, warehouse-query
+  rejections, or other server-side validity problems.
 
-  Use this skill whenever the user asks to validate, run a backend check on, or
-  verify the formal validity of the semantic layer. Trigger phrases: "validate
+  Use this skill whenever the user asks to validate the layer, run a backend
+  check, or confirm a build succeeded. The endpoint is named `builds`, so users
+  may also call it "the semantics build", "the build", or "the latest build" —
+  trigger on those just as readily as on "validate". Trigger phrases: "validate
   the semantic layer", "run lynk validate", "is my .lynk valid", "check against
   the backend", "validate on branch X", "validate on dev", "are there any schema
-  errors", "validate inquiries branch".
+  errors", "validate inquiries branch", "did the build pass", "is the latest
+  build green", "run the semantics build", "build my semantics", "rebuild on
+  branch X", "force a rebuild", "is the semantic layer ready to use".
 
   For local content quality (description quality, cross-file contradictions,
   dialect compatibility), use `lynk-evaluate` instead — this skill only runs the
-  backend API.
+  backend build.
 ---
 
 # lynk-validate-semantics
@@ -77,36 +83,52 @@ Ask the user via `AskUserQuestion` how to proceed:
 
 Future API-driven skills should reuse the same `--print-setup` / `--save-token` handshake — token plumbing lives in the script, not in each skill.
 
-### 5. Call the validate API
+### 5. Call the builds API
 
 Run the shared script:
 
 ```
-! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" POST semantics/validate \
-    --query scope=all \
-    --query fail_on_warnings=false \
-    --header x-branch-name=<branch> \
+! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" POST semantics/builds \
+    --branch <branch> \
+    --query branch=<branch> \
+    --query force=false \
     --header x-domain-name=default
 ```
 
+Branch goes in the **query string** (`?branch=...`) — that's what the endpoint reads. Passing `--branch <branch>` too keeps the script's auto-set `x-branch-name` header consistent with the URL (the header itself is ignored by this endpoint but harmless).
+
 If the user said "validate on dev" or "validate on prod", append `--env dev` or `--env prod` to override `LYNK_ENV` for this single call.
 
-The script prints `{url, method, env, status_code, body}`. Interpret per status. When you need the full response schema, read `references/rest-api.md` in this repo — that is the canonical endpoint reference. Do not fetch the public docs site for API details; the REST API spec is intentionally not published there.
+The script prints `{url, method, env, status_code, body}`. When you need the full response schema, read `references/rest-api.md` in this repo — that is the canonical endpoint reference. Do not fetch the public docs site for API details; the REST API spec is intentionally not published there.
 
-- **2xx with `status: valid`** → success, no issues.
-- **2xx or 422 with `status: invalid`** → validation issues. The issue list is at `body.issues` for 200 or `body.detail.issues` for 422; same per-issue shape either way.
-- **401 / 403** → auth failed; ask the user to verify the token in `.env` and check it isn't expired.
-- **404** → wrong route or environment; show the URL the script called.
-- **5xx / connection error (script exit 3)** → quote the message; suggest retry.
+**Three status codes carry a build object** — 200, 422, 409 — and the rest of the skill (Step 6) treats all three as success-for-reporting paths, just reading the build out of the right spot:
+
+- **`200 OK`** → fresh build, layer is **valid**. `body.status == "valid"`, `body.validation_issues == []`.
+- **`422 Unprocessable Entity`** → fresh build, layer is **invalid**. Build object sits at the **root** of the body (not under `detail`, unlike the old `/validate` endpoint). `body.status == "invalid"`, issues at `body.validation_issues`.
+- **`409 Conflict`** → **not an error.** A build for the branch's current `commit_sha` already exists, and `force=false` told the backend to return the cached build instead of rebuilding. **The cached build is wrapped under `body.detail`** — read `body.detail.status`, `body.detail.validation_issues`, and `body.detail.finished_at` (surface this as a cache timestamp in the report). This is the normal path when the user re-runs validate without pushing new commits. The cache key is the commit, not the warehouse state — if the user suspects the cached verdict is stale (sources were re-synced, columns changed without a new commit), re-call with `--query force=true` to bypass the cache.
+
+**Three are pure errors:**
+
+- **`5xx` / connection error (script exit 3)** → quote the message; suggest retry. A nonexistent branch currently surfaces as `500` with an empty body.
+- **`401` / `403`** → auth failed; ask the user to verify the token in `.env` and check it isn't expired.
+- **`404`** → wrong route or environment; show the URL the script called.
 
 ### 6. Produce the validation report
 
-Each issue has: `entity_name`, `scope` (entity / relationship / context), `category` (schema / semantic), `severity` (error / warning), `message`, `suggestion`, `location.file_path`, `location.line_number`.
+**Where the issue list lives:** `body.validation_issues` on `200` / `422`; `body.detail.validation_issues` on `409` (the cached path). Same per-issue shape in both.
+
+**Per-issue fields:**
+
+- `entity_name`, `scope` (`entity` / `relationship` / `context`), `severity` (`error` / `warning`)
+- `category` — `schema` (declarative checks: missing descriptions, malformed YAML, broken refs) or `warehouse` (the backend ran a test query against the warehouse and the engine rejected it). The category telegraphs *how* the issue was found, which is useful in the fix: a `warehouse` issue is almost always a column / type drift between the YAML and the actual table; a `schema` issue is something you can fix from reading the YAML alone.
+- `message`, `suggestion`
+- `description` — populated for `category: warehouse` errors with the rendered SQL the backend ran, the compiled warehouse query, and the engine's error verbatim. Multi-kB per issue, so **don't paste it inline**. Reference it in the report (e.g. *"Engine error trace available in `description`"*) and surface it only if the user asks for it.
+- `location.file_path`, `location.line_number`
 
 Group by severity, then by file. Sort errors before warnings.
 
 ```
-## Validation Report — branch `<branch>` (env: <prod|dev>)
+## Validation Report — branch `<branch>` (env: <prod|dev>)<cache_note>
 
 ### Summary
 Status: <valid|invalid> · Errors: <n> · Warnings: <n>
@@ -114,6 +136,7 @@ Status: <valid|invalid> · Errors: <n> · Warnings: <n>
 ### Errors (must fix)
 - **<file_path>:<line_number>** [<scope>/<category>]: <message>
   Suggestion: <suggestion>   *(omit line if suggestion is null)*
+  *Engine error trace available — ask for `description` to see the rendered SQL and warehouse error.*   *(only for `category: warehouse` with non-null `description`)*
 
 ### Warnings (should fix)
 - ...
@@ -121,6 +144,8 @@ Status: <valid|invalid> · Errors: <n> · Warnings: <n>
 ### What looks good
 - (only when status is valid)
 ```
+
+`<cache_note>` is empty for `200`/`422` (fresh build). For `409`, render ` · cached result from <body.detail.finished_at>` so the user knows the build wasn't re-run; mention in the Summary paragraph that `--query force=true` will rebuild if they suspect the cache is stale.
 
 If multiple issues land in the same file, list them under one heading for that file.
 

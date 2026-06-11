@@ -40,6 +40,8 @@ Always do this **first**, before classification or `.lynk/` reads. Two fetches:
 1. Docs tree — `WebFetch https://docs.getlynk.ai/llms.txt`
 2. Concepts grounding — `WebFetch https://docs.getlynk.ai/concepts.md`
 
+These two anchors and how to walk from the index to leaf pages are the doc-navigation convention written up in `references/lynk-docs.md`.
+
 This grounds every answer in correct Lynk vocabulary and gives you a map of doc pages to navigate to next. Skipping this step is what causes the most common failure mode for this skill — confidently confusing related primitives (e.g., treating a *metric feature* as a standalone *metric*) because general analytics vocabulary doesn't preserve Lynk's distinctions.
 
 ### 2. Classify the question
@@ -72,7 +74,7 @@ If ambiguous, ask via `AskUserQuestion`.
 - **Instance "no" / "missing"** → offer `lynk-build` to add it.
 - **Concept answer with a natural follow-up** ("…and does my graph have one?") → offer to run an instance lookup (this skill).
 - **User pivots to quality** ("is this metric well-defined?") → offer `lynk-evaluate`.
-- **User pivots to backend validity** → offer `lynk-validate`.
+- **User pivots to backend validity or asks about the semantics build** ("did the build pass?", "is the layer ready?") → offer `lynk-validate`.
 - **User pivots to source/schema** → offer `lynk-sources`.
 
 Never edit files from this skill — edits belong in `lynk-build`, which has its own plan / confirm / write / evaluate flow that this skill should hand off to rather than bypass.
