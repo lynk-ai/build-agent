@@ -10,8 +10,9 @@ description: >
   layer" isn't mentioned — phrases like "add an entity", "edit a metric", "update the
   glossary", "write task instructions", "change the clarification policy", "add a feature
   to X", "model this table", "help me define Y in Lynk", "improve the knowledge file",
-  "enhance the player entity", "optimize the glossary", or any request to improve/fix a
-  file inside `.lynk/` all mean this skill should run.
+  "enhance the player entity", "optimize the glossary", "rename a field that collides
+  with a reserved word like `order`", or any request to improve/fix a file inside
+  `.lynk/` all mean this skill should run.
 ---
 
 # lynk-build-semantics
@@ -104,12 +105,13 @@ Before drafting the plan, apply every applicable rule in `references/content-rul
 - **Rule 8** — fetch the SQL docs Rule 8 lists *before* writing any SQL; don't rely on memory.
 - **Rules 10 & 11** — if you're adding an `examples:` entry / `evaluations.yml` case / SQL example, or setting an entity's `keys:`, that rule's procedure is binding (key verification runs in Step 5). State in the plan that you applied it.
 - **Rule 12** — before adding a `related_source`, confirm the table is not (and won't become) its own entity and that you won't aggregate it; if either holds, model it as an entity + relationship instead. **When you create a *new* entity, reconcile in the same edit:** grep `.lynk/` for that table used as a `related_source` elsewhere (`! grep -rn "<table>" .lynk/`) and convert any hit to a relationship + entity-sourced feature. Phased modeling is exactly where a table becomes an entity *after* another entity already bolted it on as a related_source — that drift is the failure Rule 12 catches.
+- **Rule 13** — when naming any new feature, metric, relationship, or entity, avoid warehouse-reserved words (`order`, `value`, `group`, `user`, `date`, …); choose a non-colliding name up front (`order_status`, `event_value`) so the generated SQL doesn't fail on the user's engine. If the user explicitly requested a reserved-word name, flag the engine risk in the plan rather than silently renaming it.
 
 ### 7. Execute step by step
 
 Write or edit one file at a time. Show the user what was written before moving to the next.
 
-After each file is saved, run the **per-file quick check** (questions 1, 2, 4, 6, 7, 8, 10 from the bottom of `references/content-rules.md` — right place / clear / internally consistent / engine-compatible SQL / Lynk SQL syntax / domain on-topic / keys real). After all files in the edit are saved, run the **cross-file pass** (questions 3, 5, 9, 11 — appears once / references resolve / examples & evaluations valid / related-sources legit), since those checks need every edited file to be on disk first.
+After each file is saved, run the **per-file quick check** (questions 1, 2, 4, 6, 7, 8, 10, 12 from the bottom of `references/content-rules.md` — right place / clear and meaningful / internally consistent / engine-compatible SQL / Lynk SQL syntax / domain on-topic / keys real / reserved-word names). Treat the clarity-and-meaning check (question 2) as required on every description — a non-empty description is not a passing one. After all files in the edit are saved, run the **cross-file pass** (questions 3, 5, 9, 11 — appears once / references resolve / examples & evaluations valid / related-sources legit), since those checks need every edited file to be on disk first.
 
 Fix or escalate to the user before considering the edit done. Don't silently advance past a failure: if a check fails because of a question only the user can answer (naming, contradicting definitions), surface it before continuing.
 

@@ -18,6 +18,7 @@ The rules are prescriptive: each one says what good looks like and what the agen
 10. Examples and evaluations must be valid, runnable, and self-consistent
 11. Entity keys must actually identify a row
 12. `related_sources` must not shadow — or be aggregated as — an entity
+13. Lynk-facing names should avoid warehouse-reserved words (e.g. `order`, `value`)
 
 `lynk-evaluate` tags each finding `local/content-rules-<N>` with the rule number. The **Quick check** at the end is the minimum coverage before saving (build) or closing an audit (evaluate).
 
@@ -65,9 +66,17 @@ Never assume the misplacement was intentional. The cost of a confirmation prompt
 
 The agent reads descriptions to decide what to do. A description that doesn't help the agent decide is worse than no description — it occupies space and creates noise.
 
-**Reject these red flags. Severity: `warning` if business-critical (entity description, metric description, feature description used in queries), otherwise `suggestion`:**
+**This check is required, not optional.** Run it on *every* description and instruction you touch (build) or read (evaluate) — never skip it because a field "looks fine," the description is non-empty, or the edit was mechanical. Existence is not the test; **meaning** is. The presence of a description string satisfies nothing on its own.
 
-- **Tautological** — description repeats the name. `country_code: "country_code"`, `description: "the order entity"`.
+**The meaningfulness test:** could an agent that saw *only* this description — not the name, not the surrounding YAML — tell (a) what the thing represents and (b) when to select or apply it? If not, the description fails and must be flagged, regardless of how plausible it reads in context.
+
+**Coverage is mechanical — enumerate, then test.** First list *every* (name, description) pair in scope: the entity itself, every metric, every relationship, and **every feature — including features no metric or example references.** Then run each test below against every item on that list. Do not sample, and do not skip an item because it looks low-priority or unused. Whether an item is business-critical sets only the **severity** of a finding, never whether you check it: a weak description on an unused feature is still a finding, just a `suggestion`.
+
+**Severity:** `warning` if the element is business-critical (the entity description, a metric description, or a feature used in metrics / examples / evaluations); otherwise `suggestion`. Either way it gets flagged — "not business-critical" is never a reason to stay silent.
+
+**Reject these red flags:**
+
+- **Tautological** — the description adds nothing the name doesn't already say. Test it mechanically so this is never a judgment call: lowercase both, split the name and the description into words (on `_`, `-`, and spaces), drop stopwords (`the`, `a`, `an`, `of`, `for`, `to`, `in`, `on`). If every remaining content word of the description also appears in the name (the description's words are a subset of the name's), it is tautological. Catches `country_code: "country_code"`, `value: "value"`, **`order_data: "order data"`**, `description: "the order entity"`. (A description that introduces *any* new content word — e.g. `order_id: "Identifier of the order"` → adds `identifier` — passes this test.)
 - **Vague** — description gives no decision signal. `description: "metric data"`, `description: "customer information"`, `description: "session details"`.
 - **Placeholder** — `TODO`, `tbd`, `xxx`, `FIXME`, `???`, `[fill in]`, `pending`, empty string on a required field.
 - **Shifted-paste** — description matches a *different* field's or entity's name (typically from copy-pasting a row and forgetting to update the description).
@@ -250,7 +259,25 @@ Tag findings `local/content-rules-12`.
 
 ---
 
+## 13. Lynk-facing names should avoid warehouse-reserved words
+
+Every **Lynk-facing name** — a feature `name:`, a metric `name:`, a relationship `join_name`, or an entity name — becomes a bare identifier in the SQL the agent generates against the warehouse (`SELECT order …`, `GROUP BY value`, `FROM "user"`). If that name collides with a **reserved word in the user's warehouse engine**, the generated query can fail to compile on that engine — even though Lynk itself accepts the name and backend `validate` does not flag it. This is an engine-portability risk, not a Lynk validity error, which is why it never rises above a suggestion.
+
+This is distinct from Rule 7's reserved-word *source columns*: Rule 7 quotes the underlying warehouse column in `field:`. This rule is about the Lynk-facing **name** the agent writes in generated Lynk SQL — independent of what the source column is called.
+
+**Engine-aware.** Check names against the engine declared in `.lynk/config.json`. Words reserved across most engines — frequent offenders: `ORDER`, `GROUP`, `BY`, `SELECT`, `FROM`, `WHERE`, `TABLE`, `USER`, `VALUE`, `ROW`, `COLUMN`, `DATE`, `TIMESTAMP`, `LEVEL`, `START`, `END`, `DESC`, `ASC`. The full set is engine-specific; when unsure whether a word is reserved in the user's engine, consult that engine's reserved-word documentation rather than guessing. Because the severity is only `suggestion`, erring toward flagging a borderline word is acceptable — a false positive costs the user one ignored suggestion.
+
+**In `lynk-build`** — do **not** propose a reserved-word name when creating or editing a feature, metric, relationship, or entity. Pick a non-colliding alternative up front (`order_status` / `purchase_order` instead of `order`; `group_name` instead of `group`; `event_value` instead of `value`). If the user explicitly asks for such a name, flag the engine risk so they can decide — but don't silently rename a name they chose.
+
+**In `lynk-evaluate`** — flag any Lynk-facing name that collides with a warehouse-reserved word as a **suggestion** to rename. Lynk currently supports such names, so this is never an `error` or `warning`. Name the colliding word and the engine, explain that the generated query may fail on that engine, and propose a concrete non-colliding alternative.
+
+**Severity: `suggestion`.** Tag findings `local/content-rules-13`.
+
+---
+
 ## Quick check before saving / before closing an audit
+
+These checks are **required**, not a sampling — run every one for each relevant item, even when something "looks fine." Placement (1), single-source (3), and clarity-and-meaning (2) in particular must be *actively verified* on every item, not assumed because the file parses or the description is non-empty. Surface what each check finds at the severity its rule specifies (often a `suggestion`); a required check does not mean every finding is an error.
 
 For each file you touched (build) or read (evaluate), ask:
 
@@ -265,5 +292,6 @@ For each file you touched (build) or read (evaluate), ask:
 9. **Examples & evaluations valid?** — For every entity `examples:` entry, every `evaluations.yml` case, and every SQL example in task-instructions / knowledge: right dialect, canonical surface, all references exist **and are queryable** (no private `_`-prefixed features in generated SQL), semantically answers its `input`, and contradicts no context default (Rule 10)?
 10. **Keys real?** — Does every entity's `keys:` actually identify a row — catalog-reported or verified unique — rather than a fabricated non-unique column (Rule 11)?
 11. **Related-sources legit?** — Is every `related_sources` table free of an entity `key_source` (not shadowing an entity) and never aggregated by a metric (Rule 12)?
+12. **Reserved-word names?** — Does any Lynk-facing name (feature / metric / relationship / entity) collide with a reserved word in the warehouse engine from `.lynk/config.json`, risking a query-time failure on that engine (Rule 13)? Surface as a `suggestion` to rename.
 
 If the answer to any of these is "no" or "I'm not sure," the work isn't done.

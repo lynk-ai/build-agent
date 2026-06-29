@@ -3,7 +3,10 @@
 .env
 .env.*
 !.env.example
-# lynk-ask eval workspace (fixtures, runs, benchmarks, viewer)
+# Skill eval workspaces (fixtures, runs, benchmarks, viewer) and local opt tooling
 skills/lynk-ask-workspace/
+skills/lynk-build-workspace/
+skills/lynk-evaluate-workspace/
+skills/.opt-tools/
 # Local LLM trace captures (gatekeeper / agent input-output dumps)
 trace_rows/
