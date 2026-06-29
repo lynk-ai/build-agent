@@ -70,9 +70,13 @@ The agent reads descriptions to decide what to do. A description that doesn't he
 
 **The meaningfulness test:** could an agent that saw *only* this description — not the name, not the surrounding YAML — tell (a) what the thing represents and (b) when to select or apply it? If not, the description fails and must be flagged, regardless of how plausible it reads in context.
 
-**Reject these red flags. Severity: `warning` if business-critical (entity description, metric description, feature description used in queries), otherwise `suggestion`:**
+**Coverage is mechanical — enumerate, then test.** First list *every* (name, description) pair in scope: the entity itself, every metric, every relationship, and **every feature — including features no metric or example references.** Then run each test below against every item on that list. Do not sample, and do not skip an item because it looks low-priority or unused. Whether an item is business-critical sets only the **severity** of a finding, never whether you check it: a weak description on an unused feature is still a finding, just a `suggestion`.
 
-- **Tautological** — description repeats the name. `country_code: "country_code"`, `description: "the order entity"`.
+**Severity:** `warning` if the element is business-critical (the entity description, a metric description, or a feature used in metrics / examples / evaluations); otherwise `suggestion`. Either way it gets flagged — "not business-critical" is never a reason to stay silent.
+
+**Reject these red flags:**
+
+- **Tautological** — the description adds nothing the name doesn't already say. Test it mechanically so this is never a judgment call: lowercase both, split the name and the description into words (on `_`, `-`, and spaces), drop stopwords (`the`, `a`, `an`, `of`, `for`, `to`, `in`, `on`). If every remaining content word of the description also appears in the name (the description's words are a subset of the name's), it is tautological. Catches `country_code: "country_code"`, `value: "value"`, **`order_data: "order data"`**, `description: "the order entity"`. (A description that introduces *any* new content word — e.g. `order_id: "Identifier of the order"` → adds `identifier` — passes this test.)
 - **Vague** — description gives no decision signal. `description: "metric data"`, `description: "customer information"`, `description: "session details"`.
 - **Placeholder** — `TODO`, `tbd`, `xxx`, `FIXME`, `???`, `[fill in]`, `pending`, empty string on a required field.
 - **Shifted-paste** — description matches a *different* field's or entity's name (typically from copy-pasting a row and forgetting to update the description).
