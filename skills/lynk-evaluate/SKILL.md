@@ -3,17 +3,21 @@ name: lynk-evaluate
 description: >
   Evaluate the Lynk semantic layer in `.lynk/` — judge whether it is good enough
   for the AI agent to use, not just whether the YAML parses. Checks description
-  quality, cross-file consistency, content placement, reference integrity, and
-  SQL dialect compatibility against the user's warehouse engine.
+  quality (whether descriptions are meaningful, not merely present), cross-file
+  consistency, duplicate definitions, content placement, reference integrity,
+  reserved-word naming risks, and SQL dialect compatibility against the user's
+  warehouse engine.
 
   Use this skill whenever the user asks to evaluate, audit, review, assess, or
   diagnose the semantic layer or any part of it. Trigger on phrases like
   "evaluate the semantics", "is this good enough for the agent", "audit my
-  entities", "check description quality", "any contradictions in my context",
-  "will my SQL run on Snowflake", "will this work on BigQuery", "review the
-  glossary", "check my evaluations against instructions", "evaluate player",
-  "is the semantic layer well structured", or any request to assess the quality
-  of files inside `.lynk/`.
+  entities", "check description quality", "are my descriptions meaningful or just
+  repeating the names", "any contradictions in my context", "find duplicated
+  definitions", "are any of my field or entity names reserved words", "will my
+  column names break on Snowflake/BigQuery", "will my SQL run on Snowflake",
+  "will this work on BigQuery", "review the glossary", "check my evaluations
+  against instructions", "evaluate player", "is the semantic layer well
+  structured", or any request to assess the quality of files inside `.lynk/`.
 ---
 
 # lynk-evaluate-semantics
@@ -98,7 +102,7 @@ For each finding, record: **severity** (error / warning / needs-client-input / s
 
 Apply these check groups against the target files:
 
-- **Content rules** — apply every rule in `references/content-rules.md` (Rules 1–12; the rule index is at the top) against the target files, and tag each finding `local/content-rules-<N>` with its rule number. The Quick check at the bottom of `content-rules.md` is the minimum coverage — skip nothing.
+- **Content rules** — apply every rule in `references/content-rules.md` (Rules 1–13; the rule index is at the top) against the target files, and tag each finding `local/content-rules-<N>` with its rule number. The Quick check at the bottom of `content-rules.md` is the minimum coverage — skip nothing. Rules 1 (single source), 2/3 (placement), and 4 (meaningful descriptions) are **required** checks run on every item, not a sampling — verify them actively rather than assuming a parsing file is a clear one. Rule 13 (reserved-word names) is `suggestion`-severity: flag any Lynk-facing name (feature / metric / relationship / entity) that collides with a reserved word in the detected engine, and propose a rename — never an error.
 - **YAML & SQL structure** — required fields present, `{}` placeholders in metric SQL, `METRIC()` wrapping where required, no aggregates inside formula features, no circular formula dependencies, no duplicate feature / metric / relationship keys, and **every `keys:` entry resolves to a feature `name:` whose `field` (source column) equals that feature name** (Rule 6c). Two failure modes, both invisible to backend `validate` and only caught by a build / query: (a) a raw-column key (`keys: [ID]`) that is not a feature at all → "Key 'ID' is not defined as a feature"; (b) a *renamed* key feature (`keys: [send_id]` where `send_id` is `field: ID`) — a **confirmed live** engine bug that either errors `invalid identifier KEYS.ID` or, once the build proceeds, flags **every derived feature on the entity** (`'<feature>' cannot be queried`) and any relationship off it (`cannot be joined`). Fix both by giving the key column a feature whose name matches it (`id` on `ID`) and keying on that. **Severity: `error`.**
 - **Examples & evaluations quality** — covers every `examples:` entry in entity YAMLs, every `evaluations.yml` case, **and** every SQL example in task-instruction / knowledge markdown; the agent learns its query patterns from all three, so a broken one teaches a broken pattern. Four sub-checks (detection detail lives in the cited rules):
   - **Validity & queryability** [`local/content-rules-10`] — apply Rule 10 (dialect, canonical surface, references exist *and are queryable* — the mechanical `_`-prefix scan is in the rule). **Severity: `error`.**
