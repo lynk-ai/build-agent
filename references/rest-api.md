@@ -368,7 +368,7 @@ Refreshes the data catalog by reading the latest schema state from the warehouse
 | `sourcesDeleted` | Tables removed from the warehouse since the last sync. |
 | `fieldsCreated` | Columns added across all tables. |
 | `fieldsUpdated` | Columns whose type, nullability, or description changed. |
-| `fieldsDeleted` | Columns removed. **If non-zero, downstream entity YAMLs may reference columns that no longer exist** — check before further modeling. |
+| `fieldsDeleted` | Columns removed. **If non-zero, downstream entity `schema.yml` files may reference columns that no longer exist** — check before further modeling. |
 | `durationSeconds` | Wall time the sync took. |
 | `message` | Human-readable summary. |
 
@@ -376,7 +376,7 @@ Refreshes the data catalog by reading the latest schema state from the warehouse
 
 ## Query Engine
 
-Executes a Lynk SQL query against the semantic layer on a given branch + domain and returns rows from the warehouse. Used by `lynk-sources` for the "run this query" action and by `lynk-evaluate` to execute every `examples:` and `evaluations.yml` test case end-to-end.
+Executes a Lynk SQL query against the semantic layer on a given branch + domain and returns rows from the warehouse. Used by `lynk-sources` for the "run this query" action and by `lynk-evaluate` for its warehouse probes (e.g. key uniqueness).
 
 ### `POST /query-engine/query`
 
@@ -466,12 +466,11 @@ A bare `"Request failed"` 500 with no `detail` envelope means a backend exceptio
 
 **Caveats:**
 
-- `SELECT * FROM <entity>` may return a generic 500 with no detail. Prefer explicit column lists in evaluations and examples — that's what canonical Lynk SQL looks like anyway.
-- The endpoint runs the query against the actual warehouse on the branch — long queries take seconds to tens of seconds. For evaluation loops, wrap or append `LIMIT 1` so each test case finishes fast.
+- `SELECT * FROM <entity>` may return a generic 500 with no detail. Prefer explicit column lists — that's what canonical Lynk SQL looks like anyway.
+- The endpoint runs the query against the actual warehouse on the branch — long queries take seconds to tens of seconds. For probe loops, wrap or append `LIMIT 1` so each call finishes fast.
 
 ---
 
 ## Related Reference
 
-- [Lynk SQL](./lynk-sql.md) — the query syntax the agent uses, which you can also use directly.
-- [Evaluations](../concepts/evaluations.md) — test cases that validate agent accuracy before pushing to production.
+- [Lynk SQL](docs/api/lynk-sql.md) — the query syntax the agent uses, which you can also use directly.

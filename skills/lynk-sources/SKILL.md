@@ -1,11 +1,12 @@
 ---
 name: lynk-sources
 description: >
-  Inspect the Lynk data catalog via the API, reconcile entity YAMLs when
-  source columns change, and execute ad-hoc Lynk SQL against the semantic
-  layer: list registered schemas, list sources (tables), fetch a source's
-  columns, sync the catalog against the warehouse, clean up entity field
-  features whose source columns were dropped, and run Lynk SQL queries.
+  Inspect the Lynk data catalog via the API, reconcile entity schema.yml
+  files when source columns change, and execute ad-hoc Lynk SQL against the
+  semantic layer: list registered schemas, list sources (tables), fetch a
+  source's columns, sync the catalog against the warehouse, clean up entity
+  features whose physical source columns were dropped, and run Lynk SQL
+  queries.
 
   Use this skill whenever the user asks to: list schemas, see what tables/
   schemas exist, model a new table (fetch its columns first), sync sources,
@@ -19,13 +20,13 @@ description: >
   SQL", "does this lynk SQL execute".
 
   This skill is read-and-API-only on the catalog side. It hands off to
-  `lynk-build` for any `.yml` edits it surfaces (e.g., removing field
-  features whose source column was dropped).
+  `lynk-build` for any `.yml` edits it surfaces (e.g., removing features
+  whose physical source column was dropped).
 ---
 
 # lynk-sources-semantics
 
-This skill owns the warehouse-facing workflow: it lists schemas and sources, fetches a source's columns, syncs the catalog, reconciles entity YAMLs when source columns change, and runs ad-hoc Lynk SQL against the semantic layer. Other skills delegate to it whenever they need the warehouse side of the layer — `lynk-build` calls it before modeling a new table and to validate that referenced columns exist; `lynk-evaluate` calls it when checking Lynk SQL against the live engine. The data-catalog REST API is the transport; the workflow logic (reconcile flow, hand-off to `lynk-build` when columns drop, SQL execution) is what makes this a skill rather than a thin API wrapper.
+This skill owns the warehouse-facing workflow: it lists schemas and sources, fetches a source's columns, syncs the catalog, reconciles entity `schema.yml` files when source columns change, and runs ad-hoc Lynk SQL against the semantic layer. Other skills delegate to it whenever they need the warehouse side of the layer — `lynk-build` calls it before modeling a new table and to validate that referenced columns exist; `lynk-evaluate` calls it when checking Lynk SQL against the live engine. The data-catalog REST API is the transport; the workflow logic (reconcile flow, hand-off to `lynk-build` when columns drop, SQL execution) is what makes this a skill rather than a thin API wrapper.
 
 ## Steps
 
@@ -83,7 +84,7 @@ Concrete examples:
 For queries that span lines or contain special characters, write them to a file first and use `--data-file`:
 
 ```
-! printf '%s' '"SELECT c.country_name, METRIC('"'"'fm_ngr'"'"') AS fm_ngr FROM activity_agg_daily a JOIN country c ON c.country_code = a.country_id WHERE a.created_date >= '"'"'2026-01-01'"'"' GROUP BY 1 LIMIT 1"' > /tmp/q.json
+! printf '%s' '"SELECT c.country_name, metric(a.fm_ngr) AS fm_ngr FROM activity_agg_daily a JOIN country c ON c.country_code = a.country_id WHERE a.created_date >= '"'"'2026-01-01'"'"' GROUP BY 1 LIMIT 1"' > /tmp/q.json
 ! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" POST query-engine/query --data-file /tmp/q.json
 ```
 
@@ -106,24 +107,24 @@ The script prints `{url, method, env, branch, domain, status_code, body}`. Prese
 
 If the response shape is unexpected, show the raw body and ask how to proceed instead of guessing.
 
-### 5. Reconcile entity YAML on source change
+### 5. Reconcile entity schema.yml on source change
 
-When source columns change in the warehouse, entity YAMLs that reference them silently break — field features whose `expression` points at a dropped column will fail at query time, formula features that depend on those fields will cascade, and metrics that aggregate over them will produce wrong results. This step closes that gap: detect the drift, walk the dependency tree, and hand the cleanup to `lynk-build`.
+When source columns change in the warehouse, entity `schema.yml` files that reference them silently break — features whose `sql` reads a dropped physical column will fail at query time, features and metrics that compose from those features will cascade, and relationship steps that join on them will stop resolving. This step closes that gap: detect the drift, walk the dependency tree, and hand the cleanup to `lynk-build`.
 
 When the user said "I added/updated fields to X", "columns changed", or asked to clean up after a dropped column:
 
 1. **Run sync first** (Step 3 sync action) so the catalog reflects the latest source state. If `body.fieldsDeleted > 0` you definitely need to reconcile; if 0 you may still want to surface added fields.
 2. **Fetch current columns** (Step 3 fetch-fields action) for the affected source.
-3. **Find affected entity YAMLs** — entities sourcing from this table:
+3. **Find affected schema.yml files** — entities rooted in this table (`identity:`) or reaching it through a physical path or table relationship:
    ```
-   ! grep -lrE "key_source:\s*<id>|source:\s*<id>" .lynk/
+   ! grep -lri "<id>" .lynk/ --include=schema.yml
    ```
-4. **Diff** the fetched `columns[]` against the entity's field features. Build a dependency tree of what each removed column impacts:
-   - Field features whose `expression` references the removed column.
-   - Formula features that compose from those field features.
-   - Metrics that aggregate over removed features.
-   - Relationships that join on removed columns.
-   - Entity examples / evaluations referencing removed features or metrics.
+   (`<id>` is the 3-segment `DB.SCHEMA.TABLE`; physical column references extend it to 4+ segments, so one case-insensitive grep catches identity, table-relationship targets, and column reads.)
+4. **Diff** the fetched `columns[]` against the entity's features. Build a dependency tree of what each removed column impacts:
+   - Features whose `sql` or `filter` references the removed physical column (4+ segment paths).
+   - Features and metrics that compose from those features (entity-qualified references).
+   - Relationship steps whose `sql` joins on removed columns, and features bound to them via `join_name`.
+   - Prose (`ENTITY.md`, skills) that `@`-injects or names the affected definitions.
 5. **Show the dependency tree** to the user and confirm before any removals. **For new columns, actively offer to model them** via `lynk-build` using `AskUserQuestion` (e.g., *"3 new columns appeared in `inventory`: `restock_eta`, `supplier_tier`, `is_clearance`. Model them now as features? Yes / Defer / Skip the boolean"*). Don't just report new columns as informational — the user came here because of a source change, so offering to close the loop is the natural next step.
 6. **Hand off the removal list to `lynk-build`** to execute the YAML edits. **Do not write .yml from this skill.** Build's own Step 8 will then run lynk-evaluate to surface any remaining issues.
 

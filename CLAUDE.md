@@ -6,7 +6,7 @@ The product has two main layers - the semantic graph - which enables AI agents w
 Our goal is to create and test skills for building and validating lynk semantic graph - so users can easily build and maintain their semantic graph. 
 
 ## Resources
-1. Lynk docs are hosted at https://docs.getlynk.ai and are fetched on demand by the skills (via `WebFetch`). No local docs folder is kept in this repo.
+1. Lynk docs live in `references/docs/` — a local copy of the Lynk Semantics v2 docs, read directly by the skills (index: `references/docs/SUMMARY.md`, navigation guide: `references/docs/CLAUDE.md`).
 2. /.lynk folder - a folder with an example for a real semantic layer build on lynk, on the data of the NBA.
 
 ## Marketplace layout
