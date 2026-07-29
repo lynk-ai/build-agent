@@ -1,28 +1,19 @@
 ---
 name: lynk-validate
 description: >
-  Run the Lynk backend's **semantics build** (`POST /api/semantics/builds`) to
-  confirm the semantic layer in `.lynk/` on a committed branch is valid and ready
-  for the AI agent to use. Returns a build object with `status: valid|invalid`
-  and any issues — schema errors, broken source-field references, warehouse-query
-  rejections, or other server-side validity problems.
+  Run the Lynk backend's semantics build (`POST /api/semantics/builds`) to
+  confirm the layer in `.lynk/` on a committed branch is valid — returning a
+  build object (`status: valid|invalid`) with any schema errors, broken source
+  references, or warehouse-query rejections.
 
-  Use this skill whenever the user asks to validate the layer, run a backend
-  check, or confirm a build succeeded. The endpoint is named `builds`, so users
-  may also call it "the semantics build", "the build", or "the latest build" —
-  trigger on those just as readily as on "validate". Trigger phrases: "validate
-  the semantic layer", "run lynk validate", "is my .lynk valid", "check against
-  the backend", "validate on branch X", "validate on dev", "are there any schema
-  errors", "validate inquiries branch", "did the build pass", "is the latest
-  build green", "run the semantics build", "build my semantics", "rebuild on
-  branch X", "force a rebuild", "is the semantic layer ready to use".
-
-  For local content quality (description quality, cross-file contradictions,
-  dialect compatibility), use `lynk-evaluate` instead — this skill only runs the
-  backend build.
+  Use when the user wants to validate the layer or confirm a build. The endpoint
+  is "builds", so also trigger on "the build", "the semantics build", "did the
+  build pass". Triggers: "validate the semantic layer", "is my .lynk valid",
+  "validate on dev", "any schema errors", "force a rebuild". For content quality
+  (not validity), use `lynk-evaluate`.
 ---
 
-# lynk-validate-semantics
+# lynk-validate
 
 ## Steps
 
@@ -85,7 +76,9 @@ Future API-driven skills should reuse the same `--print-setup` / `--save-token` 
 
 ### 5. Call the builds API
 
-Run the shared script:
+**Status-only questions first** ("is the latest build green?", "when did it last pass?") — when the user wants the current verdict *without* triggering a build, use the read-only `GET semantics/builds/latest-successful --query branch=<branch>`: it returns the most recent **successful** build for the branch (or `404` if none exists yet). Report from that and stop. Fall through to the `POST` below to validate the *current* commit, or when no successful build exists yet.
+
+Otherwise, build and validate the current commit with the shared script:
 
 ```
 ! "$(command -v python3 || command -v python)" "${CLAUDE_PLUGIN_ROOT}/scripts/lynk_api.py" POST semantics/builds \
@@ -103,7 +96,7 @@ The script prints `{url, method, env, status_code, body}`. When you need the ful
 
 **Three status codes carry a build object** — 200, 422, 409 — and the rest of the skill (Step 6) treats all three as success-for-reporting paths, just reading the build out of the right spot:
 
-- **`200 OK`** → fresh build, layer is **valid**. `body.status == "valid"`, `body.validation_issues == []`.
+- **`200 OK`** → fresh build, layer is **valid**. `body.status == "valid"`. `body.validation_issues` is normally empty, but a valid build with **warnings** still lists them here — always read the array rather than assuming it's empty, and surface any warnings (they carry `severity: warning`, not `error`).
 - **`422 Unprocessable Entity`** → fresh build, layer is **invalid**. Build object sits at the **root** of the body (not under `detail`, unlike the old `/validate` endpoint). `body.status == "invalid"`, issues at `body.validation_issues`.
 - **`409 Conflict`** → **not an error.** A build for the branch's current `commit_sha` already exists, and `force=false` told the backend to return the cached build instead of rebuilding. **The cached build is wrapped under `body.detail`** — read `body.detail.status`, `body.detail.validation_issues`, and `body.detail.finished_at` (surface this as a cache timestamp in the report). This is the normal path when the user re-runs validate without pushing new commits. The cache key is the commit, not the warehouse state — if the user suspects the cached verdict is stale (sources were re-synced, columns changed without a new commit), re-call with `--query force=true` to bypass the cache.
 
@@ -111,7 +104,7 @@ The script prints `{url, method, env, status_code, body}`. When you need the ful
 
 - **`5xx` / connection error (script exit 3)** → quote the message; suggest retry. A nonexistent branch currently surfaces as `500` with an empty body.
 - **`401` / `403`** → auth failed; ask the user to verify the token in `.env` and check it isn't expired.
-- **`404`** → wrong route or environment; show the URL the script called.
+- **`404`** → wrong route or environment — and the API-drift signal. Show the URL called, then fetch the service spec to check whether the path moved: `GET semantics/openapi.json` and compare your route against its `paths`. If the spec shows a different path, that's the change — surface it and reconcile `references/rest-api.md`. (Consult the spec only here, on failure — not on every call.)
 
 ### 6. Produce the validation report
 

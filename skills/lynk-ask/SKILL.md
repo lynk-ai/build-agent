@@ -1,28 +1,20 @@
 ---
 name: lynk-ask
 description: >
-  Answer questions about the Lynk semantic layer — what's in `.lynk/`
-  (instance lookups) and Lynk concepts themselves (primitives, file types,
-  placement). Read-only: never edits, never calls the backend.
+  Answer questions about the Lynk semantic layer, grounded in the docs — both
+  Lynk concepts (primitives, file types, placement, syntax) and what's in a
+  given `.lynk/` (instance lookups). Read-only: never edits, never calls the
+  backend.
 
-  Use this skill for any question about Lynk or `.lynk/`, even simple ones.
-  Lynk distinguishes primitives that general analytics vocabulary blurs —
-  e.g. a *metric* under `metrics:` is entity-local, while a cross-entity
-  aggregate is a *feature* whose `sql` calls `metric()`. Don't answer from
-  prior knowledge; run this skill so the answer is doc-grounded.
-
-  Instance triggers: "does the player have a metric for total games played?",
-  "what metrics does X have?", "list features of X", "where is Y defined?",
-  "what's the SQL for X?", "how many entities do I have?". Concept triggers:
-  "what goes in ENTITY.md vs LYNK.md?", "metric vs. feature?", "what is a
-  skill vs. a policy?", "where should glossary terms go?", "what is a
-  clarification policy?", "how do imports work?".
-
-  For edits use `lynk-build`; for quality `lynk-evaluate`; for backend
-  checks `lynk-validate`; for sources `lynk-sources`.
+  Use for any Lynk question, even simple ones — Lynk blurs distinctions general
+  analytics vocabulary misses (a `metrics:` metric is entity-local; a
+  cross-entity aggregate is a feature calling `metric()`). Triggers: "metric
+  vs. feature?", "what goes in ENTITY.md vs LYNK.md?", "where is Y defined?",
+  "list features of X", "how do imports work?". Edits → `lynk-build`; quality →
+  `lynk-evaluate`; validity → `lynk-validate`; sources → `lynk-sources`.
 ---
 
-# lynk-ask-semantics
+# lynk-ask
 
 This skill answers questions about the Lynk semantic layer. It is read-only — it never writes to `.lynk/`, never calls the Lynk API. Two question shapes are in scope:
 
@@ -62,7 +54,7 @@ If ambiguous, ask via `AskUserQuestion`.
 
 ### 4. Answer precisely
 
-- **Lead with disambiguation when the question uses an ambiguous term.** "Metric" can mean a standalone metric (under `metrics:`, entity-local) or a feature whose `sql` calls `metric()` across a relationship (under `features:`, row-grain). "Knowledge" can mean entity prose (`ENTITY.md`), team orientation (`LYNK.md`), or vocabulary (`GLOSSARY.yml`). A lead like "Yes — there's a metric called X" is wrong if X is actually a feature: it plants the wrong primitive in the user's head and reproduces the exact failure this skill exists to prevent. The lead sentence must name the *exact* primitive — e.g. "Yes — `total_games_played` is a *feature* on `player` that calls `metric(game.count_games)` across a relationship, not a standalone metric."
+- **Lead with disambiguation when the question uses an ambiguous term.** "Metric" can mean a standalone metric (under `metrics:`, entity-local) or a feature whose `sql` calls `metric()` across a relationship (under `features:`, row-grain). "Knowledge" can mean entity prose (`ENTITY.md`), team orientation (`LYNK.md`), or vocabulary (`GLOSSARY.yml`). A lead like "Yes — there's a metric called X" is wrong if X is actually a feature: it plants the wrong primitive in the user's head and reproduces the exact failure this skill exists to prevent. The lead sentence must name the *exact* primitive — e.g. "Yes — `total_games_played` is a *feature* on `player` that calls `metric(game.count_games)` across a relationship, not a standalone metric." (This metric-vs-feature distinction is specified in `references/docs/concepts/entity/schema-yml/metric.md` — cite it rather than restating placement from memory.)
 - **For "no" / "missing" answers, scan the glossary and prose files before concluding.** If the same term shows up there (e.g. "PPG" defined in `GLOSSARY.yml` while there's no `points_per_game` metric on the entity), cite it and call out the gap explicitly: "the concept exists in your glossary as Z, but isn't modeled as a metric/feature/relationship." This is what makes the `lynk-build` handoff land — the user sees the modeling gap, not just an empty result.
 - Use exact Lynk vocabulary throughout — even outside the lead. When primitives that are easy to confuse appear (metric vs. cross-entity aggregate feature, `ENTITY.md` prose vs. `LYNK.md` orientation, skill vs. policy), call out the distinction even if the user didn't ask for it.
 - For instance answers, cite `file:line` paths and quote the relevant YAML or markdown.
@@ -83,7 +75,7 @@ Never edit files from this skill — edits belong in `lynk-build`, which has its
 
 - Lead with the direct answer in one sentence — yes / no, the count, the name.
 - Back it up with evidence: a YAML excerpt + file path for instance answers, or a quoted doc passage with its `references/docs/` path for concept answers.
-- For "no" instance answers, state where the missing item *would* live if added (e.g., "no metric for total games played on player; it would go under `.lynk/domains/<domain>/entities/player/schema.yml → metrics:`").
+- For "no" instance answers, state where the missing item *would* live if added, applying the same metric-vs-feature disambiguation as the lead (e.g., "no *feature* for total games played on `player` yet; a cross-entity count would live under `features:` as a `sql` that calls `metric(game.count_games)`, not under `metrics:` — metrics are entity-local; see `references/docs/concepts/entity/schema-yml/metric.md`").
 - For primitive distinctions, show a short side-by-side before the answer.
 - Use code blocks for YAML, SQL, and file paths.
 - Always cite the doc path when leaning on a concept definition.
