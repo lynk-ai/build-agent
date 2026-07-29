@@ -1,20 +1,17 @@
 ---
 name: lynk-build
 description: >
-  Build and edit the Lynk semantic layer — add or modify entities, metrics, features,
-  relationships, knowledge files, glossary, task instructions, clarification policy,
-  output format, and domains in `.lynk/`.
+  Build and edit the Lynk semantic layer in `.lynk/` — entities (ENTITY.md +
+  schema.yml), features, metrics, relationships, glossary, skills, policies,
+  domains, and LYNK.md.
 
-  Use this skill whenever the user asks to add, create, edit, update, define, review,
-  improve, enhance, or optimize any semantic layer artifact. Trigger even when "semantic
-  layer" isn't mentioned — phrases like "add an entity", "edit a metric", "update the
-  glossary", "write task instructions", "change the clarification policy", "add a feature
-  to X", "model this table", "help me define Y in Lynk", "improve the knowledge file",
-  "enhance the player entity", "optimize the glossary", or any request to improve/fix a
-  file inside `.lynk/` all mean this skill should run.
+  Use whenever the user wants to add, create, edit, update, define, model, or
+  improve any `.lynk/` artifact — even without the words "semantic layer".
+  Triggers: "add an entity", "edit a metric", "model this table", "update the
+  glossary", "write a churn skill", "improve the player entity".
 ---
 
-# lynk-build-semantics
+# lynk-build
 
 ## Steps
 
@@ -22,18 +19,20 @@ description: >
 
 ### 1. Read the basic Lynk docs to ground yourself
 
-**Mandatory — do not skip even for bulk pass-through edits.** The vocabulary and primitive list below is what every later step assumes you know.
+**Mandatory — do not skip even for bulk pass-through edits.** The vocabulary and primitive list below is what every later step assumes you know. All `references/…` paths in this skill resolve from the plugin root — `${CLAUDE_PLUGIN_ROOT}` when installed as a plugin, the repo root when working in this repo — not the user's CWD.
 
-- Fetch `https://docs.getlynk.ai/concepts.md` to understand the Core Vocabulary and Semantic Layer structure — what Lynk primitives exist: Entity, Feature, Metric, Relationship, Glossary, Domain, Context (knowledge / task-instructions / clarification policy / output format).
+- Read `references/docs/concepts/README.md` to understand the Core Vocabulary and Semantic Layer structure — what Lynk primitives exist: Domain, Entity (`ENTITY.md` + `schema.yml`), Feature, Metric, Relationship, `GLOSSARY.yml`, Skill, Policy, `LYNK.md` orientation, and reference files.
 
-For how to navigate the docs (the two anchor pages and walking from the index to leaf pages), see `references/lynk-docs.md`.
+For how to navigate the docs (the two anchor pages and walking from the index to leaf pages), see `references/docs/CLAUDE.md`.
+
+**Layer precondition (Rule 18).** A layer must declare `localization.start_of_week_day` in `lynk.yml` — the anchor for all week-bucketed reporting. When you're setting up or first editing a layer and it's absent, ask the user for it via `AskUserQuestion` before building; there is no safe default (the wrong anchor silently shifts every weekly number).
 
 ### 2. Understand the user's request
 
 From the user's request, determine:
 - **Concept type** — which primitive are they asking about?
 - **Artifact name** — which specific one (e.g. "player entity", "points_per_game metric", "NBA glossary")?
-- **Domain** — default to `default` unless stated otherwise
+- **Domain** — which folder under `.lynk/domains/` owns it. If the project has one domain, use it; otherwise ask rather than guess (a domain is a team's agent — placing content in the wrong one hides it from the team that needs it).
 - Whether the user provided source files (CSV, text, docs) to inform the content
 
 ### 3. Locate the artifact in `.lynk/`
@@ -47,28 +46,28 @@ Identify which file(s) own the artifact the user mentioned by scanning the actua
 
 ### 4. Read the relevant docs and detect the SQL engine
 
-**Mandatory — do not skip the docs index fetch or the entity-file reads below, even for bulk pass-through edits.** A 30-field "just add these columns" request is exactly where re-reading the entity's knowledge file and task-instructions catches naming conventions, field-visibility rules, and existing groupings that the agent would otherwise miss.
+**Mandatory — do not skip the docs index read or the entity-file reads below, even for bulk pass-through edits.** A 30-field "just add these columns" request is exactly where re-reading the entity's `ENTITY.md` prose catches naming conventions, quirks, and existing groupings that the agent would otherwise miss.
 
-**Always fetch the docs index** with `https://docs.getlynk.ai/llms.txt` to see what pages are available. This is the index of all Lynk docs that you can fetch. It also gives you a sense of how the docs are structured, so you can make informed decisions about which files to read for the most relevant context.
+**Always read the docs index** at `references/docs/SUMMARY.md` to see what pages are available. This is the index of all Lynk docs that you can read. It also gives you a sense of how the docs are structured, so you can make informed decisions about which files to read for the most relevant context.
 
-Consult the live Lynk docs via `WebFetch` — only fetch what you need.
+Consult the local Lynk docs under `references/docs/` — only read what you need.
 Read the narrowest set of files that gives you enough context to act:
 
 #### Entity
-Users can ask to build or edit an entity, or ask about an entity's features, metrics, relationships, knowledge, task instructions, clarification policy, or output format. In all cases, the core files to read are:
-- the entity's YAML file
-- the entity's knowledge files
-- the entity's task-instructions files
-- the domain-level files for that entity (knowledge, task instructions, clarification policy, output format)
+Users can ask to build or edit an entity, or ask about an entity's features, metrics, relationships, or prose. In all cases, the core files to read are:
+- the entity's `schema.yml`
+- the entity's `ENTITY.md` (plus any supporting files its prose `@`-injects)
+- the domain's `LYNK.md` and `GLOSSARY.yml` (and the root `LYNK.md` / `GLOSSARY.yml` — they compose with the domain's)
+- any skills or policies in the domain that reference the entity
 
 In case the user request is referring multiple entities, read all of them, but avoid reading unrelated entities.
 
 #### Non Entity
-- If the user does not ask about an entity or its sub-primitives (metrics, features, relationships or context), and it is clear that they are asking about (might be agent behavior, a glossary term, or a domain-level context file), then read only the relevant file(s). 
+- If the user does not ask about an entity or its sub-primitives (metrics, features, relationships or prose), and it is clear what they are asking about (agent behavior → a policy, a way of reasoning → a skill, a term → the glossary, orientation → `LYNK.md`), then read only the relevant file(s).
 If it is not clear, check with the user before moving forward.
 
 #### Detect the SQL engine
-Read `.lynk/config.json` for an `engine`, `dialect`, or `warehouse` field (common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`). If the field is missing, empty, or the file doesn't exist, ask the user via `AskUserQuestion` — do not guess. The dialect drives Rule 7 of `references/content-rules.md`: every SQL snippet you write must be valid in that engine.
+Skip this for prose-only edits (glossary text, `LYNK.md` orientation); when the edit will write or modify SQL, detect the engine. The v2 layer doesn't declare the engine anywhere in `lynk.yml`. Determine it from the user via `AskUserQuestion` (common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`) or from the data catalog via `lynk-sources` — do not guess. The dialect drives Rule 7 of `references/content-rules.md`: every SQL expression you write must be valid in that engine.
 
 ### 5. Ground the model in the real source — fields first, then the key
 
@@ -83,17 +82,19 @@ Delegate to `lynk-sources` to pull the source's `description`, `keys`, column co
 - **Wide table (roughly ≥40 columns)** → don't dump every column or ask the user how to proceed. Lead with a recommended next step: model the core subset the entity's questions actually need first, or group the columns by theme and confirm the grouping. Recommend; don't offload the whole decision.
 - **User-provided files** — if the user attached or pasted CSV/text/docs, use those as the column source instead of (or alongside) the catalog.
 
-If the user says "I added fields to X" or "columns of X changed", delegate to `lynk-sources` to sync, refetch fields, and reconcile any field features whose source columns no longer exist.
+If the user says "I added fields to X" or "columns of X changed", delegate to `lynk-sources` to sync, refetch fields, and reconcile any features whose physical source columns no longer exist.
 
 **Announce the source-fetch step for multi-field adds (≥5 fields).** Before delegating to `lynk-sources`, tell the user explicitly: *"Fetching current source columns via `lynk-sources` first — grounding against the live catalog so we don't model fields that no longer exist or miss ones that were just added."* The user should see the workflow happen, not have to ask afterwards whether the skill grounded itself.
 
 #### Choose the entity key
 
-A `keys` is mandatory and must *uniquely identify a row* — see Rule 11 in `references/content-rules.md` for why a non-unique column is worse than none. Source it from real data, never fabricate it:
+When the entity's `identity` is a physical table, `keys` is required and must *uniquely identify a row* — see Rule 11 in `references/content-rules.md` for why a non-unique column is worse than none. (When `identity` is another entity, `keys` is inherited — do not re-author it.) Source it from real data, never fabricate it:
 
 1. **Catalog reports `keys`** → use them as-is.
 2. **Catalog `keys` is empty** → derive a candidate (a single id-like column, or a composite for the grain) and verify it via `lynk-sources`: `SELECT COUNT(*) AS rows, COUNT(DISTINCT <candidate>) AS distinct_rows FROM <table>` (composite → count the distinct concatenation). Unique iff `rows == distinct_rows` and non-null. **Narrate each attempt** so the user sees the reasoning, not just a verdict.
-3. **At most 3 candidates.** One verifies → use it, and say it was *verified*. All 3 fail → stop and escalate via `AskUserQuestion` with the real options (a composite the user knows is unique, an upstream surrogate, or reconsidering the grain).
+3. **At most 3 candidates.** One verifies → use it, and say it was *verified*. All 3 fail → stop and escalate via `AskUserQuestion` with the real options (a composite the user knows is unique, an upstream surrogate, or reconsidering the grain — the grain fix is an upstream view or table, never an inline query).
+
+**Keys are not features.** If a relationship step, feature expression, or query will reference a key column, declare a feature for it in the same edit — an undeclared key is invisible outside the `keys:` block (`references/docs/concepts/entity/schema-yml/identity-and-imports.md`).
 
 ### 6. Plan and confirm
 
@@ -101,15 +102,15 @@ Share a concise plan: which files you'll create or edit and the key decisions. W
 
 Before drafting the plan, apply every applicable rule in `references/content-rules.md` (the rule index is at the top) to the proposed change, and call out in the plan which rules bear on it and what each requires — build enforces the same rulebook evaluate audits. A few need action *inside the plan*, not just a mental check:
 - **Rule 3** — if you noticed misplaced content while reading, offer relocation here, even if it's outside the original request.
-- **Rule 8** — fetch the SQL docs Rule 8 lists *before* writing any SQL; don't rely on memory.
-- **Rules 10 & 11** — if you're adding an `examples:` entry / `evaluations.yml` case / SQL example, or setting an entity's `keys:`, that rule's procedure is binding (key verification runs in Step 5). State in the plan that you applied it.
-- **Rule 12** — before adding a `related_source`, confirm the table is not (and won't become) its own entity and that you won't aggregate it; if either holds, model it as an entity + relationship instead. **When you create a *new* entity, reconcile in the same edit:** grep `.lynk/` for that table used as a `related_source` elsewhere (`! grep -rn "<table>" .lynk/`) and convert any hit to a relationship + entity-sourced feature. Phased modeling is exactly where a table becomes an entity *after* another entity already bolted it on as a related_source — that drift is the failure Rule 12 catches.
+- **Rule 8** — read the SQL docs Rule 8 lists *before* writing any SQL; don't rely on memory.
+- **Rules 10 & 11** — if the user's content carries a formula or SQL destined for prose, Rule 10's procedure is binding: promote the computation to a feature or metric and have the prose point at it. If you're setting an entity's `keys:`, Rule 11 is binding (key verification runs in Step 5). State in the plan that you applied them.
+- **Table relationships climb the promotion ladder** (`references/docs/guides/designing-entities.md`) — before adding a `table_relationship`, confirm the target table is not (and won't become) another entity's `identity` in this domain; reaching an entity's data through a raw table join is the **table-relationship reach-around** anti-pattern — declare an `entity_relationship` and reference the entity's features instead. Promote a table to an entity when users ask questions of it directly, when two or more entities need paths through it (entity-relationship steps must be entities), or when it needs its own features or metrics. **When you create a *new* entity, reconcile in the same edit:** grep `.lynk/` for its identity table used in other entities' `table_relationships` (`! grep -rn "<table>" .lynk/`) and convert any reach-around to an entity relationship + entity-sourced features. Phased modeling is exactly where a table becomes an entity *after* another entity already bolted it on as a table relationship.
 
 ### 7. Execute step by step
 
 Write or edit one file at a time. Show the user what was written before moving to the next.
 
-After each file is saved, run the **per-file quick check** (questions 1, 2, 4, 6, 7, 8, 10 from the bottom of `references/content-rules.md` — right place / clear / internally consistent / engine-compatible SQL / Lynk SQL syntax / domain on-topic / keys real). After all files in the edit are saved, run the **cross-file pass** (questions 3, 5, 9, 11 — appears once / references resolve / examples & evaluations valid / related-sources legit), since those checks need every edited file to be on disk first.
+After each file is saved, run the **per-file quick check** — the per-file questions at the bottom of `references/content-rules.md` (right place, clear, budgeted, engine-compatible and right-surface SQL, keys real, ratios and additivity, temporally correct, no stale prose constants). After all files in the edit are saved, run the **cross-file pass** (appears once, references resolve, no computation in prose, content live and reachable), which needs every edited file on disk first.
 
 Fix or escalate to the user before considering the edit done. Don't silently advance past a failure: if a check fails because of a question only the user can answer (naming, contradicting definitions), surface it before continuing.
 
@@ -123,11 +124,13 @@ This recap is the user's record of the work and the bridge into Step 8. Never sk
 
 ### 8. Evaluate what you built
 
+**Skip this step entirely if this edit was delegated as a fix from `lynk-evaluate`** — evaluate is already running the review loop, and re-entering it here would recurse.
+
 **Announce the handoff explicitly before starting.** Open this step with a sentence like *"Now chaining into `lynk-evaluate` to surface content-quality issues beyond schema validity — description quality, cross-file consistency, placement, and Lynk SQL syntax."* The user should see the phase change, not have to ask afterwards whether evaluate ran.
 
-Once all edits are saved, run the `lynk-evaluate` flow targeted at the artifact you just edited (the entity, glossary, or domain file from Step 7) — not the full graph. Evaluate already chains the backend `lynk-validate` call **and** owns the fix-offer + re-evaluation loop (capped at 3 attempts). Just present whatever evaluate returns; **do not** run a parallel fix loop here.
+Once all edits are saved, run the `lynk-evaluate` flow targeted at the artifact you just edited (the entity, glossary, skill, policy, or `LYNK.md` from Step 7) — not the full graph. Evaluate is **quality-only and read-only** — it applies the content-rules layer and owns the fix-offer + re-evaluation loop (capped at 3 attempts), but does **not** run the backend build. Just present whatever evaluate returns; **do not** run a parallel fix loop here. Backend/engine validity is a separate check — run `lynk-validate` once the changes are committed (the build only sees a committed branch).
 
-**Never substitute a raw API call for the full `lynk-evaluate` flow.** Calling `POST /semantics/builds` directly (or via `lynk-validate` alone) only runs the backend schema + warehouse-probe check — it skips the content-rules layer (description quality, cross-file consistency, placement, Lynk SQL syntax, domain coherence) that `lynk-evaluate` adds on top. A "the edit was mechanical enough" reason is not sufficient grounds to substitute; the content-rules layer catches naming and placement issues that have nothing to do with how mechanical the change felt.
+**Never substitute a raw API call for the full `lynk-evaluate` flow.** Calling `POST /semantics/builds` directly (or via `lynk-validate` alone) only runs the backend schema + warehouse-probe check — it skips the content-rules layer (description quality, cross-file consistency, placement, Lynk SQL syntax, domain coherence) that `lynk-evaluate` covers. Quality and validity are separate checks — run both: `lynk-evaluate` for content quality, `lynk-validate` for structural/engine validity. A "the edit was mechanical enough" reason is not sufficient grounds to skip evaluate; the content-rules layer catches naming and placement issues that have nothing to do with how mechanical the change felt.
 
 Skip this step only if the user **explicitly** opted out ("just add the field, don't evaluate it"). Inferring discretion from the size or apparent simplicity of the edit is not opting out.
 

@@ -6,6 +6,19 @@ This file is intentionally not published on `docs.getlynk.ai` — the REST API i
 
 This reference is a work in progress. Endpoints, request/response shapes, and field semantics may change. Verify behavior against your tenant before depending on it in automation, and reach out to the platform team for changes you spot.
 
+**Source of truth — the per-service OpenAPI specs.** Each backend service publishes a live spec at `<base>/<service>/openapi.json` — e.g. `https://app.getlynk.ai/api/semantics/openapi.json`, `.../data-catalog/openapi.json`, `.../query-engine/openapi.json`, `.../integrations/openapi.json`. Those are authoritative for exact paths, params, and response shapes; this file is a curated summary of just the routes the skills use. **When they disagree, the spec wins** — reconcile this file (and the skills) to it. Note each spec's paths are *relative to its service mount*, so `POST /builds` in the semantics spec is `POST /api/semantics/builds`.
+
+**Reconciling this file (on demand — not per call).** Skills consult a spec *reactively*, only when a call fails with a drift-shaped error (`404` / param `422`). That misses **silent** drift — a param renamed or added that doesn't error (e.g. `page` → `current_page`, which quietly returned only the first page). So periodically, or when you suspect a change, re-pull the four specs (they're **public — no token needed**) and diff the routes / query params / response fields the skills use against this file:
+
+| Spec | Routes to check |
+|---|---|
+| `…/api/semantics/openapi.json` | `POST /builds` (params `branch`, `force`), `GET /builds/latest-successful` |
+| `…/api/data-catalog/openapi.json` | `GET /sources` (params `current_page`, `items_per_page`, `source_id`, `source_ids`), `GET /sources/{source_id}`, `POST /sources/sync` |
+| `…/api/query-engine/openapi.json` | `POST /query` (body: JSON SQL string) |
+| `…/api/integrations/openapi.json` | `GET /data/schemas` |
+
+Anything that differs: fix it here **and** in the skill that calls it. This is the proactive complement to the skills' error-time fetch.
+
 ---
 
 ## Contents
@@ -13,10 +26,10 @@ This reference is a work in progress. Endpoints, request/response shapes, and fi
 Conventions (read once): [Base URL](#base-url) · [Authentication](#authentication) · [Standard request headers](#standard-request-headers) · [Response shape](#response-shape)
 
 Endpoints:
-- **Semantics** — `POST /semantics/builds` (used by `lynk-validate`, `lynk-evaluate`)
+- **Semantics** — `POST /semantics/builds` (used by `lynk-validate`)
 - **Integrations — Schemas** — `GET /integrations/data/schemas`
-- **Data Catalog — Sources** — `GET /data-catalog/sources` · `GET /data-catalog/sources/{key_source}` · `POST /data-catalog/sources/sync` (used by `lynk-sources`, `lynk-build`)
-- **Query Engine** — `POST /query-engine/query` (run Lynk SQL; used by `lynk-sources`, `lynk-evaluate`)
+- **Data Catalog — Sources** — `GET /data-catalog/sources` · `GET /data-catalog/sources/{source_id}` · `POST /data-catalog/sources/sync` (used by `lynk-sources`, `lynk-build`)
+- **Query Engine** — `POST /query-engine/query` (run Lynk SQL; used by `lynk-sources`)
 - [Related Reference](#related-reference)
 
 ---
@@ -123,17 +136,17 @@ There are three success-shaped paths — `200`, `422`, `409` — and each return
   "semantic_layer": { "entities": [...] },
   "validation_issues": [
     {
-      "entity_name": "activity_agg_daily",
+      "entity_name": "orders",
       "related_entities": [],
       "items": [],
       "scope": "entity",
       "category": "warehouse",
       "severity": "error",
-      "message": "Feature 'game_id' on entity 'activity_agg_daily' cannot be queried.",
+      "message": "Feature 'order_total' on entity 'orders' cannot be queried.",
       "suggestion": "Check that the feature's field/sql expression and any filter columns exist on the source table. If the feature is a formula or metric-feature, look at the features it transitively depends on — one of those may be the root cause.",
-      "description": "### Query attempted\n\n```sql\nSELECT game_id FROM activity_agg_daily LIMIT 0\n```\n\n### Compiled warehouse query\n\n```sql\n...\n```\n\n### Engine error\n\n```\nExecutionError: ProgrammingError: ... column keys.game_id does not exist ...\n```",
+      "description": "### Query attempted\n\n```sql\nSELECT order_total FROM orders LIMIT 0\n```\n\n### Compiled warehouse query\n\n```sql\n...\n```\n\n### Engine error\n\n```\nExecutionError: ProgrammingError: ... column keys.order_total does not exist ...\n```",
       "location": {
-        "file_path": ".lynk/default/entities/activity_agg_daily.yml",
+        "file_path": ".lynk/domains/sales/entities/orders/schema.yml",
         "line_number": null
       }
     }
@@ -187,7 +200,7 @@ There are three success-shaped paths — `200`, `422`, `409` — and each return
 | `severity` | `"error"` \| `"warning"` | Severity level. |
 | `message` | string | Human-readable description of the issue. |
 | `suggestion` | string \| null | A hint on how to fix the issue, when available. |
-| `description` | string \| null | Rich markdown — present (and large, multi-kB) for `category: warehouse` errors. Contains three sections: `### Query attempted` (the Lynk SQL probe), `### Compiled warehouse query` (the engine-dialect SQL the backend ran), and `### Engine error` (the verbatim engine response, e.g. `column keys.game_id does not exist`). For other categories it is typically `null`. Clients should *not* paste it inline in summaries — surface its availability and render it only when the user asks. |
+| `description` | string \| null | Rich markdown — present (and large, multi-kB) for `category: warehouse` errors. Contains three sections: `### Query attempted` (the Lynk SQL probe), `### Compiled warehouse query` (the engine-dialect SQL the backend ran), and `### Engine error` (the verbatim engine response, e.g. `column keys.order_total does not exist`). For other categories it is typically `null`. Clients should *not* paste it inline in summaries — surface its availability and render it only when the user asks. |
 | `location.file_path` | string | Path to the offending file inside `.lynk/`. |
 | `location.line_number` | integer \| null | Line in the file, when known. |
 
@@ -224,7 +237,7 @@ Lists every `DB.SCHEMA` scope currently registered for the tenant.
 
 ## Data Catalog — Sources
 
-A *source* is a single table inside a registered schema. Its `id` has the format `DB.SCHEMA.TABLE` and is the value used as `{key_source}` when fetching column-level details.
+A *source* is a single table inside a registered schema. Its `id` has the format `DB.SCHEMA.TABLE` and is the value used as `{source_id}` when fetching column-level details.
 
 ### `GET /data-catalog/sources`
 
@@ -236,7 +249,10 @@ Lists every source (table) the catalog currently tracks. Paginated.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `page` | integer | `1` | Page number for pagination. |
+| `current_page` | integer | `1` | Page number (1-based). |
+| `items_per_page` | integer | `20` | Rows per page; max `150`. Raise it to fetch a large catalog in fewer calls. |
+| `source_id` | string | — | Optional case-insensitive substring filter on the source id. |
+| `source_ids` | string | — | Optional comma-separated list of exact source ids. |
 
 **Response:**
 
@@ -265,7 +281,7 @@ Lists every source (table) the catalog currently tracks. Paginated.
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | string | Fully qualified table identifier — `DB.SCHEMA.TABLE`. Use this as `{key_source}` for column-level calls. |
+| `id` | string | Fully qualified table identifier — `DB.SCHEMA.TABLE`. Use this as `{source_id}` for column-level calls. |
 | `name` | string | Bare table name. |
 | `db` | string | Database name. |
 | `schema` | string | Schema name (within `db`). |
@@ -273,7 +289,7 @@ Lists every source (table) the catalog currently tracks. Paginated.
 | `description` | string | Free-text description of the table. |
 | `sourceType` | string | Catalog source type (`asset` for warehouse tables). |
 
-### `GET /data-catalog/sources/{key_source}`
+### `GET /data-catalog/sources/{source_id}`
 
 Fetches the full column list and metadata for a single source.
 
@@ -281,7 +297,7 @@ Fetches the full column list and metadata for a single source.
 
 | Name | Type | Description |
 |---|---|---|
-| `key_source` | string | The `id` returned by `GET /data-catalog/sources` — `DB.SCHEMA.TABLE`. |
+| `source_id` | string | The `id` returned by `GET /data-catalog/sources` — `DB.SCHEMA.TABLE`. |
 
 **Headers:** `x-api-key`, `x-branch-name`, `x-domain-name`.
 
@@ -332,7 +348,7 @@ Fetches the full column list and metadata for a single source.
 | `nullable` | boolean | Whether the column accepts `NULL`. |
 | `defaultValue` | any \| null | Default value, when defined. |
 
-`404 Not Found` — if `{key_source}` isn't in the catalog (run `POST /data-catalog/sources/sync` first).
+`404 Not Found` — if `{source_id}` isn't in the catalog (run `POST /data-catalog/sources/sync` first).
 
 ### `POST /data-catalog/sources/sync`
 
@@ -368,7 +384,7 @@ Refreshes the data catalog by reading the latest schema state from the warehouse
 | `sourcesDeleted` | Tables removed from the warehouse since the last sync. |
 | `fieldsCreated` | Columns added across all tables. |
 | `fieldsUpdated` | Columns whose type, nullability, or description changed. |
-| `fieldsDeleted` | Columns removed. **If non-zero, downstream entity YAMLs may reference columns that no longer exist** — check before further modeling. |
+| `fieldsDeleted` | Columns removed. **If non-zero, downstream entity `schema.yml` files may reference columns that no longer exist** — check before further modeling. |
 | `durationSeconds` | Wall time the sync took. |
 | `message` | Human-readable summary. |
 
@@ -376,7 +392,7 @@ Refreshes the data catalog by reading the latest schema state from the warehouse
 
 ## Query Engine
 
-Executes a Lynk SQL query against the semantic layer on a given branch + domain and returns rows from the warehouse. Used by `lynk-sources` for the "run this query" action and by `lynk-evaluate` to execute every `examples:` and `evaluations.yml` test case end-to-end.
+Executes a Lynk SQL query against the semantic layer on a given branch + domain and returns rows from the warehouse. Used by `lynk-sources` for the "run this query" action and by `lynk-evaluate` for its warehouse probes (e.g. key uniqueness).
 
 ### `POST /query-engine/query`
 
@@ -466,12 +482,11 @@ A bare `"Request failed"` 500 with no `detail` envelope means a backend exceptio
 
 **Caveats:**
 
-- `SELECT * FROM <entity>` may return a generic 500 with no detail. Prefer explicit column lists in evaluations and examples — that's what canonical Lynk SQL looks like anyway.
-- The endpoint runs the query against the actual warehouse on the branch — long queries take seconds to tens of seconds. For evaluation loops, wrap or append `LIMIT 1` so each test case finishes fast.
+- `SELECT * FROM <entity>` may return a generic 500 with no detail. Prefer explicit column lists — that's what canonical Lynk SQL looks like anyway.
+- The endpoint runs the query against the actual warehouse on the branch — long queries take seconds to tens of seconds. For probe loops, wrap or append `LIMIT 1` so each call finishes fast.
 
 ---
 
 ## Related Reference
 
-- [Lynk SQL](./lynk-sql.md) — the query syntax the agent uses, which you can also use directly.
-- [Evaluations](../concepts/evaluations.md) — test cases that validate agent accuracy before pushing to production.
+- [Lynk SQL](docs/api/lynk-sql.md) — the query syntax the agent uses, which you can also use directly.
