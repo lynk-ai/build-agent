@@ -248,58 +248,43 @@ Tag findings `local/content-rules-11`.
 
 ## 12. Ratio metrics aggregate as ratio-of-sums, not average-of-ratios
 
-A ratio — a rate, percentage, or average-per-X — that is computed per row and then combined with `AVG()` returns a mathematically wrong number: the average of per-row ratios is **not** the ratio of the totals, because it weights every row equally regardless of its size. The correct form aggregates the numerator and denominator separately and divides the sums — `SUM(numerator) / NULLIF(SUM(denominator), 0)` — so each underlying unit is weighted by its magnitude and division-by-zero is guarded. This error passes every structural check and every dialect check: the build compiles the expression and the warehouse returns a plausible, wrong value — exactly the class of defect this rulebook exists to catch (`references/docs/concepts/entity/schema-yml/metric.md`, `references/docs/guides/metrics-time-and-state.md`).
-
-Flag any metric or metric-feature whose `sql` averages a column that is itself a ratio / percentage / rate, or divides two already-aggregated quantities. The fix is to define the metric over the raw numerator and denominator and divide the summed values, guarding the denominator with `NULLIF`. Cross-check the intended scale against the description (Rule 4). **Severity: `error`** — it silently corrupts a headline number. Tag findings `local/content-rules-12`.
+Flag a metric or metric-feature whose `sql` averages a per-row ratio, or divides two already-aggregated values, instead of dividing summed numerator by summed denominator with a `NULLIF` guard. The build compiles it and returns a plausible wrong number. Why, and the correct form: `references/docs/guides/metrics-time-and-state.md`, `references/docs/concepts/entity/schema-yml/metric.md`. Cross-check the scale against the description (Rule 4). **Severity: `error`.** Tag `local/content-rules-12`.
 
 ---
 
 ## 13. Additivity — a measure sums across a dimension only if its grain allows
 
-Some measures are **not additive** across time: a balance, headcount, inventory-on-hand, MRR, or any snapshot *level* double-counts when `SUM()`-ed across periods — `SUM(mrr)` over twelve monthly snapshots returns roughly 12× the real figure, and nothing errors. These semi-additive measures may sum across non-time dimensions but must be reduced to a point in time (the latest snapshot, or a chosen period) when aggregated across time. That reduction is only possible if the snapshot grain — one row per entity per period — exists upstream in the first place (`references/docs/guides/metrics-time-and-state.md`).
-
-Flag any metric that plain-`SUM()`s a stock / level / balance / snapshot measure with no point-in-time reduction, and any description whose language implies a snapshot ("current", "as of", "balance", "on hand", "active at") while the `sql` is a straight additive sum. The fix is to reduce across time first (e.g. take the latest snapshot per entity) and only then aggregate — or to model the snapshot grain upstream if it doesn't exist. **Severity: `error`** for a clear stock summed over time; **`needs-client-input`** when additivity turns on business intent the layer doesn't state. Tag findings `local/content-rules-13`.
+Flag a stock / balance / snapshot / level measure that is plain-`SUM()`-ed across time (it double-counts — nothing errors), or a snapshot-worded description ("current", "as of", "balance", "on hand") defined as a straight additive sum. Such measures must be reduced to a point in time before aggregating across time. Details: `references/docs/guides/metrics-time-and-state.md`. **Severity: `error`**, or `needs-client-input` when the intended additivity is a business call. Tag `local/content-rules-13`.
 
 ---
 
 ## 14. Context economy — budget what loads eagerly
 
-Context has a cost, and some of it is paid on *every* question. Four load classes (`references/docs/guides/context-engineering.md`): **always** (root/domain `LYNK.md`, every `GLOSSARY.yml`, every `POLICY.md`), **on activation** (an entity's `ENTITY.md` body plus everything it `@`-injects; a skill body), **just-in-time** (linked `instructions/` and `examples/` files, loaded only when summoned), and **never** (`schema.yml` internals, until the entity is used). A layer is well-budgeted when each piece sits in the *cheapest* class that still reaches everyone who needs it.
+Some context is paid on *every* question; budget it. The load classes and placement ladder are in `references/docs/guides/context-engineering.md`. Flag content that pays more than it earns:
+- **Bloated eager surface** — a large always-loaded file (`GLOSSARY.yml`, a `POLICY.md` table) or an `ENTITY.md` body carrying detail only some questions need; move the rarely-needed part to a linked `instructions/` file.
+- **Glossary noise** — a term that is general knowledge with no company-specific meaning; the glossary is the team's vocabulary (`references/docs/concepts/glossary.md`) and always loaded, so common-knowledge entries are pure cost.
+- **Examples that don't teach** — an example must teach something non-obvious, be correct, not contradict what it illustrates, and live lazily in an `examples/` file (linked, not `@`-injected).
+- **Injection chains** — an `@` that drags a large transitive closure into every activation of its host.
 
-Flag content that pays more than it earns:
-- **Bloated eager surface** — an always-loaded file (a ~500-line `GLOSSARY.yml`, a large `POLICY.md` interpretation table) or an `ENTITY.md` body carrying detail only some questions need. The fix is to move the rarely-needed part to a linked `instructions/` file; keep the body to what *every* analysis of that primitive needs.
-- **Glossary noise** — a glossary term that is general knowledge the agent already has, with no company/domain-specific meaning. The glossary is the *team's* vocabulary (`references/docs/concepts/glossary.md`) and is always loaded, so a common-knowledge entry is pure cost. Flag it for removal; keep only company terms, abbreviations, and words with a non-obvious local meaning.
-- **Examples that don't teach** — an example earns its place only if it teaches something non-obvious (a tricky case, a company convention), is correct, and does not contradict the definitions it illustrates; a trivial or wrong example is worse than none. Examples live lazily in an `examples/` file, linked not `@`-injected, so they cost nothing until summoned. Flag trivial, wrong, contradicting, or inlined examples.
-- **Injection chains** — an `@`-injection that drags a large transitive closure into every activation of its host; each author sees one small `@`, the agent pays for all of them.
-
-**Severity:** `suggestion`, escalating to `warning` for a clearly oversized always-loaded surface. Applies equally in `lynk-build` (author at the right load class) and `lynk-evaluate` (audit the budget). Tag findings `local/content-rules-14`.
+**Severity:** `suggestion` (→ `warning` for a clearly oversized always-loaded surface). Applies in `lynk-build` and `lynk-evaluate`. Tag `local/content-rules-14`.
 
 ---
 
 ## 15. No dead, legacy, or unreachable content
 
-Every file under `.lynk/` must be a valid v2 artifact in a location the layout and topology can actually reach; otherwise it is dead to the agent and drifts silently out of sync with the live layer. Three smells (`references/docs/reference/layout-and-naming.md`, `references/docs/concepts/lynk-yml.md` topology):
-- **Wrong location** — a file outside the recognized tree (root `lynk.yml` / `LYNK.md` / `GLOSSARY.yml` / `domains/` / root reference files, and within a domain its entities / skills / policies). A stray top-level folder like `default/` that no domain on disk corresponds to is unreachable.
-- **Legacy format** — v1-style frontmatter or file types (`type: knowledge`, `type: task-instruction`, a standalone `knowledge.md` or `task-instructions/` file) that v2 replaced with `ENTITY.md` + `schema.yml`, skills, and policies.
-- **Orphaned duplicate** — an older copy of content that now lives correctly elsewhere, kept in a place nothing loads.
-
-The fix is to **migrate any unique content to its correct v2 home, then delete the dead file** — never leave both. Before deleting, confirm the surviving copy is a superset so nothing unique is lost. **Severity:** `warning` (dead + drift risk; escalate if the two copies already disagree). Applies in `lynk-build` (never leave a leftover after a migration or move) and `lynk-evaluate`. Tag findings `local/content-rules-15`.
+Flag any file under `.lynk/` that the layout and topology can't reach, so it's dead and drifts: a **wrong-location** file (outside the recognized tree — e.g. a stray top-level `default/`), a **legacy-format** file (v1 `type: knowledge` / `task-instructions/` that v2 replaced with `ENTITY.md` + `schema.yml` / skills / policies), or an **orphaned duplicate** kept where nothing loads it. Layout + topology: `references/docs/reference/layout-and-naming.md`, `references/docs/concepts/lynk-yml.md`. Fix: migrate any unique content to its v2 home, then delete the dead file (confirm the survivor is a superset first). **Severity: `warning`.** Applies in `lynk-build` and `lynk-evaluate`. Tag `local/content-rules-15`.
 
 ---
 
 ## 16. State and dimension fields must be temporally correct — as-of vs. current
 
-When a table denormalizes an attribute that changes over time (segment, status, owner, tier, price), each such field reflects a *specific point in time* — the value as of the event, or the value *now* — and the two are different data. A field description must say which, and any skill, metric, or filter must use the temporally correct one. Grouping a historical trend by a *current* status silently answers a different question than the one asked, and it compiles fine (`references/docs/guides/metrics-time-and-state.md` — model state at the grain where it is true).
-
-Flag: a time-varying dimension field whose description doesn't state its temporal anchor; two fields for the same attribute (an as-of-event one and a current one) used interchangeably; a skill or metric that filters or groups a time-of-event question by a "current" field (or the reverse). This is distinct from Rule 13 (aggregating a *measure* across time) — here it is picking the wrong temporal *version of a dimension*. **Severity:** `warning`, or `needs-client-input` when which snapshot is intended is a business call. Applies in `lynk-build` and `lynk-evaluate`. Tag findings `local/content-rules-16`.
+When a table denormalizes an attribute that changes over time (segment, status, owner, tier, price), the field is either as-of-the-event or current — different data. Flag a field whose description doesn't state which, two such fields used interchangeably, or a skill/metric that filters or groups by the wrong one (e.g. a historical trend grouped by *current* status). Distinct from Rule 13 (aggregating a measure) — here it's the wrong temporal *version of a dimension*. Grain-of-state: `references/docs/guides/metrics-time-and-state.md`. **Severity: `warning`**, or `needs-client-input` when the intended snapshot is a business call. Tag `local/content-rules-16`.
 
 ---
 
 ## 17. No stale data constants baked into prose
 
-Prose (`LYNK.md`, `ENTITY.md`, glossary, skills, policies) must not assert concrete, queryable data values or rankings as fixed constants — a per-entity attribute pinned as "X = 97, Y = 87", a "top 3 are …", a threshold like "≥ 1.5%". Those values live in the warehouse and drift; a frozen prose copy misleads every question that trusts it, and a self-dated one ("as of May 2026") announces its own decay (`references/docs/guides/where-knowledge-goes.md` — a queryable value belongs in `schema.yml`, not prose). This extends Rule 10 (formulas / SQL in prose) to *data values and business thresholds*.
-
-Flag a prose statement that pins a value which exists in the data; the fix is to move it to a feature or metric the prose points at, or to state it as a queryable attribute rather than a fixed number. **Scope carefully:** a genuine capability caveat ("as of now there is no way to identify courtesy credits") is legitimate prose, not a stale constant — the check is for values that *exist in the data* and will change. **Severity:** `warning`. Applies in `lynk-build` and `lynk-evaluate`. Tag findings `local/content-rules-17`.
+Flag prose (`LYNK.md`, `ENTITY.md`, glossary, skills, policies) that pins a concrete queryable value or ranking as a fixed constant — "X = 97, Y = 87", "top 3 are …", "≥ 1.5%" — especially self-dated ones ("as of May 2026"); those live in the warehouse and drift. Move the value to a feature/metric the prose points at (`references/docs/guides/where-knowledge-goes.md`). Extends Rule 10 (SQL/formulas in prose) to data values and thresholds. **Scope carefully:** a genuine capability caveat ("no way to identify courtesy credits yet") is legitimate prose, not a stale constant. **Severity: `warning`.** Tag `local/content-rules-17`.
 
 ---
 
