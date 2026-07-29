@@ -1,20 +1,17 @@
 ---
 name: lynk-build
 description: >
-  Build and edit the Lynk semantic layer — add or modify entities (ENTITY.md +
-  schema.yml), features, metrics, relationships, glossary terms, skills, policies,
-  LYNK.md orientation, and domains in `.lynk/`.
+  Build and edit the Lynk semantic layer in `.lynk/` — entities (ENTITY.md +
+  schema.yml), features, metrics, relationships, glossary, skills, policies,
+  domains, and LYNK.md.
 
-  Use this skill whenever the user asks to add, create, edit, update, define, review,
-  improve, enhance, or optimize any semantic layer artifact. Trigger even when "semantic
-  layer" isn't mentioned — phrases like "add an entity", "edit a metric", "update the
-  glossary", "write a skill for churn analysis", "change the clarification policy",
-  "add a feature to X", "model this table", "help me define Y in Lynk", "improve the
-  entity's prose", "enhance the player entity", "optimize the glossary", or any request
-  to improve/fix a file inside `.lynk/` all mean this skill should run.
+  Use whenever the user wants to add, create, edit, update, define, model, or
+  improve any `.lynk/` artifact — even without the words "semantic layer".
+  Triggers: "add an entity", "edit a metric", "model this table", "update the
+  glossary", "write a churn skill", "improve the player entity".
 ---
 
-# lynk-build-semantics
+# lynk-build
 
 ## Steps
 
@@ -27,6 +24,8 @@ description: >
 - Read `references/docs/concepts/README.md` to understand the Core Vocabulary and Semantic Layer structure — what Lynk primitives exist: Domain, Entity (`ENTITY.md` + `schema.yml`), Feature, Metric, Relationship, `GLOSSARY.yml`, Skill, Policy, `LYNK.md` orientation, and reference files.
 
 For how to navigate the docs (the two anchor pages and walking from the index to leaf pages), see `references/docs/CLAUDE.md`.
+
+**Layer precondition (Rule 18).** A layer must declare `localization.start_of_week_day` in `lynk.yml` — the anchor for all week-bucketed reporting. When you're setting up or first editing a layer and it's absent, ask the user for it via `AskUserQuestion` before building; there is no safe default (the wrong anchor silently shifts every weekly number).
 
 ### 2. Understand the user's request
 
@@ -68,7 +67,7 @@ In case the user request is referring multiple entities, read all of them, but a
 If it is not clear, check with the user before moving forward.
 
 #### Detect the SQL engine
-The v2 layer does not declare the engine — `lynk.yml` carries only `schema_version`, `topology`, and `name`. Determine it from the user via `AskUserQuestion` (common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`) or from the data catalog via `lynk-sources` — do not guess. The dialect drives Rule 7 of `references/content-rules.md`: every SQL expression you write must be valid in that engine.
+Skip this for prose-only edits (glossary text, `LYNK.md` orientation); when the edit will write or modify SQL, detect the engine. The v2 layer doesn't declare the engine anywhere in `lynk.yml`. Determine it from the user via `AskUserQuestion` (common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`) or from the data catalog via `lynk-sources` — do not guess. The dialect drives Rule 7 of `references/content-rules.md`: every SQL expression you write must be valid in that engine.
 
 ### 5. Ground the model in the real source — fields first, then the key
 
@@ -111,7 +110,7 @@ Before drafting the plan, apply every applicable rule in `references/content-rul
 
 Write or edit one file at a time. Show the user what was written before moving to the next.
 
-After each file is saved, run the **per-file quick check** (questions 1, 2, 4, 6, 7, 8, 10 from the bottom of `references/content-rules.md` — right place / clear / internally consistent / engine-compatible SQL / right SQL surface / domain coherent / keys real). After all files in the edit are saved, run the **cross-file pass** (questions 3, 5, 9 — appears once / references resolve / no computation in prose), since those checks need every edited file to be on disk first.
+After each file is saved, run the **per-file quick check** — the per-file questions at the bottom of `references/content-rules.md` (right place, clear, budgeted, engine-compatible and right-surface SQL, keys real, ratios and additivity, temporally correct, no stale prose constants). After all files in the edit are saved, run the **cross-file pass** (appears once, references resolve, no computation in prose, content live and reachable), which needs every edited file on disk first.
 
 Fix or escalate to the user before considering the edit done. Don't silently advance past a failure: if a check fails because of a question only the user can answer (naming, contradicting definitions), surface it before continuing.
 
@@ -125,11 +124,13 @@ This recap is the user's record of the work and the bridge into Step 8. Never sk
 
 ### 8. Evaluate what you built
 
+**Skip this step entirely if this edit was delegated as a fix from `lynk-evaluate`** — evaluate is already running the review loop, and re-entering it here would recurse.
+
 **Announce the handoff explicitly before starting.** Open this step with a sentence like *"Now chaining into `lynk-evaluate` to surface content-quality issues beyond schema validity — description quality, cross-file consistency, placement, and Lynk SQL syntax."* The user should see the phase change, not have to ask afterwards whether evaluate ran.
 
-Once all edits are saved, run the `lynk-evaluate` flow targeted at the artifact you just edited (the entity, glossary, skill, policy, or `LYNK.md` from Step 7) — not the full graph. Evaluate already chains the backend `lynk-validate` call **and** owns the fix-offer + re-evaluation loop (capped at 3 attempts). Just present whatever evaluate returns; **do not** run a parallel fix loop here.
+Once all edits are saved, run the `lynk-evaluate` flow targeted at the artifact you just edited (the entity, glossary, skill, policy, or `LYNK.md` from Step 7) — not the full graph. Evaluate is **quality-only and read-only** — it applies the content-rules layer and owns the fix-offer + re-evaluation loop (capped at 3 attempts), but does **not** run the backend build. Just present whatever evaluate returns; **do not** run a parallel fix loop here. Backend/engine validity is a separate check — run `lynk-validate` once the changes are committed (the build only sees a committed branch).
 
-**Never substitute a raw API call for the full `lynk-evaluate` flow.** Calling `POST /semantics/builds` directly (or via `lynk-validate` alone) only runs the backend schema + warehouse-probe check — it skips the content-rules layer (description quality, cross-file consistency, placement, Lynk SQL syntax, domain coherence) that `lynk-evaluate` adds on top. A "the edit was mechanical enough" reason is not sufficient grounds to substitute; the content-rules layer catches naming and placement issues that have nothing to do with how mechanical the change felt.
+**Never substitute a raw API call for the full `lynk-evaluate` flow.** Calling `POST /semantics/builds` directly (or via `lynk-validate` alone) only runs the backend schema + warehouse-probe check — it skips the content-rules layer (description quality, cross-file consistency, placement, Lynk SQL syntax, domain coherence) that `lynk-evaluate` covers. Quality and validity are separate checks — run both: `lynk-evaluate` for content quality, `lynk-validate` for structural/engine validity. A "the edit was mechanical enough" reason is not sufficient grounds to skip evaluate; the content-rules layer catches naming and placement issues that have nothing to do with how mechanical the change felt.
 
 Skip this step only if the user **explicitly** opted out ("just add the field, don't evaluate it"). Inferring discretion from the size or apparent simplicity of the edit is not opting out.
 

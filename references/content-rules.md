@@ -17,6 +17,13 @@ The rules are prescriptive: each one says what good looks like and what the agen
 9. Domain coherence — a domain's content serves its team's agent
 10. No raw SQL or formulas in prose — computation lives in schema
 11. Entity keys must actually identify a row
+12. Ratio metrics aggregate as ratio-of-sums, not average-of-ratios
+13. Additivity — a measure sums across a dimension only if its grain allows (semi-additive / snapshot)
+14. Context economy — budget what loads eagerly; nothing carries what the agent already knows
+15. No dead, legacy, or unreachable content
+16. State and dimension fields must be temporally correct — as-of vs. current
+17. No stale data constants baked into prose
+18. Required project settings — `lynk.yml` declares the week-start
 
 `lynk-evaluate` tags each finding `local/content-rules-<N>` with the rule number. The **Quick check** at the end is the minimum coverage before saving (build) or closing an audit (evaluate).
 
@@ -76,6 +83,8 @@ The agent reads descriptions to decide what to do — and in v2 they are doubly 
 - **Pasted fragment** — description reads like an instruction snippet rather than a description (`"see the customer entity for revenue"` is navigation, not a description).
 - **Grain missing on an entity** — an entity description that can't say "one row per …" in its first line isn't describing an entity yet (`references/docs/guides/designing-entities.md`).
 - **Scale missing on a ratio** — any ratio feature or metric must state its scale (`0–1` vs `0–100`) in the description, and every threshold that touches it must use that scale (`references/docs/concepts/entity/schema-yml/feature.md`, `references/docs/concepts/entity/schema-yml/metric.md`).
+- **Detail-bloated** — a description that buries its decision signal in length, or a *field* description carrying mechanics that belong in knowledge. Keep a description to what the agent needs to decide *whether this is the thing and when it applies*; a field description stays as short as possible, and depth (edge cases, procedures, worked detail) goes to the entity's `ENTITY.md` or a linked `instructions/` file, pointed at — because the description is always paid at index/activation time while the depth should be lazy (`references/docs/guides/context-engineering.md`, and Rule 14).
+- **Non-discriminating among siblings** — in a family of near-parallel measures (`net_revenue`, `net_revenue_ep`, `net_revenue_epc`…), a description that doesn't say how *this* one differs from its siblings forces the agent to guess between them; each must state its distinguishing filter, segment, or window (`references/docs/guides/context-engineering.md`, `references/docs/guides/metrics-time-and-state.md` — "measure explosion").
 
 **What good looks like.** A good description tells the agent (a) what this thing represents and (b) when it applies — for entities, grain first:
 > `description: A completed purchase transaction. One row per order. Use for revenue, order volume, purchase dates, and product-level sales.`
@@ -134,7 +143,7 @@ Two shapes of the same problem — names without definitions, or definitions imp
 
 Every SQL expression in `.lynk/` compiles down to the user's warehouse dialect — Lynk intercepts only its own constructs (`metric()`, `USING('<join_name>')`, path references) and passes everything else through (`references/docs/api/lynk-sql.md`). So metric and feature `sql:`, `filter:` predicates, and relationship step conditions must all be valid in the warehouse engine the user runs.
 
-**Detect the engine first.** The v2 layer does not declare the engine — `lynk.yml` carries only `schema_version`, `topology`, and `name` (`references/docs/concepts/lynk-yml.md`). Determine it from the user (ask once via `AskUserQuestion`) or from the data catalog via `lynk-sources`; record it for the session. Common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`. Never guess.
+**Detect the engine first.** The v2 layer doesn't declare the engine anywhere in `lynk.yml`. Determine it from the user (ask once via `AskUserQuestion`) or from the data catalog via `lynk-sources`; record it for the session. Common values: `bigquery`, `snowflake`, `postgres`, `redshift`, `databricks`. Never guess.
 
 **Dialect-specific red flags:**
 - `IFF` — Snowflake-flavored (BigQuery uses `IF`, Postgres `CASE WHEN`).
@@ -150,7 +159,7 @@ Every SQL expression in `.lynk/` compiles down to the user's warehouse dialect �
 
 **In `lynk-build`** — write SQL using the detected engine's syntax from the start. When a portable form exists, prefer it over an engine-specific shortcut. Don't assume a dialect; if engine isn't yet detected, detect first.
 
-**In `lynk-evaluate`** — scan every SQL expression against the detected engine and flag dialect-incompatible constructs. **Severity: `error`.** The SQL will fail at runtime, not at parse time, so the user won't see the issue until they run a query.
+**In `lynk-evaluate`** — nothing here. Engine/dialect compatibility is *validity*, not quality: the backend build's per-feature `LIMIT 0` probe catches dialect-incompatible SQL when the user runs `lynk-validate`. Evaluate stays read-only and does not detect the engine or scan for dialect issues. (Its SQL check is the *surface* check — Rule 8 — not dialect.)
 
 ---
 
@@ -160,6 +169,8 @@ Lynk has two SQL surfaces that look similar but apply in different contexts, and
 
 - **The authoring grammar** — the `sql:` / `filter:` fields inside `schema.yml`. Segment-counted path references (`order.net_amount` = entity-local, `maindb.public.orders.net_amount` = physical column), `metric()` / `first()` / `last()`, entity-qualified names, a single `join_name` binding every cross-entity reference, no templating of any kind. Spec: `references/docs/reference/sql-expressions.md`.
 - **The Lynk SQL query dialect** — what the agent (or a user) writes against a built layer. Entities in `FROM`, feature names as columns, `metric(<entity>.<name>)` with an alias in the `SELECT` list, `USING('<join_name>')` for named relationships. `first()` / `last()` do **not** exist here — that's a documented pitfall. Spec: `references/docs/api/lynk-sql.md`.
+
+**Surface vs. dialect — the Rule 7 boundary.** A `sql:` that skips the entity/table qualification its siblings use, or puts a query-only function (`first()`/`last()`) in a definition, is a *surface* error — Rule 8, which `lynk-evaluate` catches statically. *Quoting* a reserved-word column (`"ORDER"`) or any engine-specific concern is *validity* — Rule 7, caught by the backend build, not evaluate. When in doubt: is it about the *grammar/context* (surface → Rule 8) or *will-it-run-on-this-engine* (dialect → Rule 7)?
 
 This rulebook does not duplicate the SQL specs. Before writing or scanning any Lynk SQL, read:
 
@@ -227,11 +238,86 @@ The failure this rule catches is a **fabricated key**: a `keys` entry whose colu
 
 **In `lynk-evaluate`** — flag a `keys` that has no uniqueness backing:
    - **Static suspicion — `needs-client-input`.** Uniqueness is a property of the data, so static analysis can only *suspect*. Raise it when: the catalog reports no `keys` for the identity table yet the entity declares one; or the entity's own description calls the source an event / log / activity stream (grains that rarely have a single unique column) and `keys` is a single non-id-looking column. Surface the candidate and the reason.
-   - **Authoritative check — `error`.** Run `SELECT COUNT(*) AS rows, COUNT(DISTINCT <keys>) AS distinct_rows FROM <identity_table>` via `lynk-sources` (lynk-evaluate Step 7). `distinct_rows < rows` → the key is not unique → **error**. This confirms what Rule 6 can't: a declared, resolvable key that is nonetheless invalid.
+   - **Authoritative check — `error` (not run by `lynk-evaluate`).** Confirming uniqueness needs `SELECT COUNT(*) AS rows, COUNT(DISTINCT <keys>) AS distinct_rows FROM <identity_table>` — a warehouse query, so it runs in `lynk-build` (Step 5, when authoring the key) or via `lynk-sources` on request, never inside read-only `lynk-evaluate`. `distinct_rows < rows` → the key is not unique → **error**. Evaluate raises only the static suspicion above and points the user to that check.
 
 Remember **keys are not features** (Rule 6a): a key column that any relationship step, expression, or query references must also be declared as a feature.
 
 Tag findings `local/content-rules-11`.
+
+---
+
+## 12. Ratio metrics aggregate as ratio-of-sums, not average-of-ratios
+
+A ratio — a rate, percentage, or average-per-X — that is computed per row and then combined with `AVG()` returns a mathematically wrong number: the average of per-row ratios is **not** the ratio of the totals, because it weights every row equally regardless of its size. The correct form aggregates the numerator and denominator separately and divides the sums — `SUM(numerator) / NULLIF(SUM(denominator), 0)` — so each underlying unit is weighted by its magnitude and division-by-zero is guarded. This error passes every structural check and every dialect check: the build compiles the expression and the warehouse returns a plausible, wrong value — exactly the class of defect this rulebook exists to catch (`references/docs/concepts/entity/schema-yml/metric.md`, `references/docs/guides/metrics-time-and-state.md`).
+
+Flag any metric or metric-feature whose `sql` averages a column that is itself a ratio / percentage / rate, or divides two already-aggregated quantities. The fix is to define the metric over the raw numerator and denominator and divide the summed values, guarding the denominator with `NULLIF`. Cross-check the intended scale against the description (Rule 4). **Severity: `error`** — it silently corrupts a headline number. Tag findings `local/content-rules-12`.
+
+---
+
+## 13. Additivity — a measure sums across a dimension only if its grain allows
+
+Some measures are **not additive** across time: a balance, headcount, inventory-on-hand, MRR, or any snapshot *level* double-counts when `SUM()`-ed across periods — `SUM(mrr)` over twelve monthly snapshots returns roughly 12× the real figure, and nothing errors. These semi-additive measures may sum across non-time dimensions but must be reduced to a point in time (the latest snapshot, or a chosen period) when aggregated across time. That reduction is only possible if the snapshot grain — one row per entity per period — exists upstream in the first place (`references/docs/guides/metrics-time-and-state.md`).
+
+Flag any metric that plain-`SUM()`s a stock / level / balance / snapshot measure with no point-in-time reduction, and any description whose language implies a snapshot ("current", "as of", "balance", "on hand", "active at") while the `sql` is a straight additive sum. The fix is to reduce across time first (e.g. take the latest snapshot per entity) and only then aggregate — or to model the snapshot grain upstream if it doesn't exist. **Severity: `error`** for a clear stock summed over time; **`needs-client-input`** when additivity turns on business intent the layer doesn't state. Tag findings `local/content-rules-13`.
+
+---
+
+## 14. Context economy — budget what loads eagerly
+
+Context has a cost, and some of it is paid on *every* question. Four load classes (`references/docs/guides/context-engineering.md`): **always** (root/domain `LYNK.md`, every `GLOSSARY.yml`, every `POLICY.md`), **on activation** (an entity's `ENTITY.md` body plus everything it `@`-injects; a skill body), **just-in-time** (linked `instructions/` and `examples/` files, loaded only when summoned), and **never** (`schema.yml` internals, until the entity is used). A layer is well-budgeted when each piece sits in the *cheapest* class that still reaches everyone who needs it.
+
+Flag content that pays more than it earns:
+- **Bloated eager surface** — an always-loaded file (a ~500-line `GLOSSARY.yml`, a large `POLICY.md` interpretation table) or an `ENTITY.md` body carrying detail only some questions need. The fix is to move the rarely-needed part to a linked `instructions/` file; keep the body to what *every* analysis of that primitive needs.
+- **Glossary noise** — a glossary term that is general knowledge the agent already has, with no company/domain-specific meaning. The glossary is the *team's* vocabulary (`references/docs/concepts/glossary.md`) and is always loaded, so a common-knowledge entry is pure cost. Flag it for removal; keep only company terms, abbreviations, and words with a non-obvious local meaning.
+- **Examples that don't teach** — an example earns its place only if it teaches something non-obvious (a tricky case, a company convention), is correct, and does not contradict the definitions it illustrates; a trivial or wrong example is worse than none. Examples live lazily in an `examples/` file, linked not `@`-injected, so they cost nothing until summoned. Flag trivial, wrong, contradicting, or inlined examples.
+- **Injection chains** — an `@`-injection that drags a large transitive closure into every activation of its host; each author sees one small `@`, the agent pays for all of them.
+
+**Severity:** `suggestion`, escalating to `warning` for a clearly oversized always-loaded surface. Applies equally in `lynk-build` (author at the right load class) and `lynk-evaluate` (audit the budget). Tag findings `local/content-rules-14`.
+
+---
+
+## 15. No dead, legacy, or unreachable content
+
+Every file under `.lynk/` must be a valid v2 artifact in a location the layout and topology can actually reach; otherwise it is dead to the agent and drifts silently out of sync with the live layer. Three smells (`references/docs/reference/layout-and-naming.md`, `references/docs/concepts/lynk-yml.md` topology):
+- **Wrong location** — a file outside the recognized tree (root `lynk.yml` / `LYNK.md` / `GLOSSARY.yml` / `domains/` / root reference files, and within a domain its entities / skills / policies). A stray top-level folder like `default/` that no domain on disk corresponds to is unreachable.
+- **Legacy format** — v1-style frontmatter or file types (`type: knowledge`, `type: task-instruction`, a standalone `knowledge.md` or `task-instructions/` file) that v2 replaced with `ENTITY.md` + `schema.yml`, skills, and policies.
+- **Orphaned duplicate** — an older copy of content that now lives correctly elsewhere, kept in a place nothing loads.
+
+The fix is to **migrate any unique content to its correct v2 home, then delete the dead file** — never leave both. Before deleting, confirm the surviving copy is a superset so nothing unique is lost. **Severity:** `warning` (dead + drift risk; escalate if the two copies already disagree). Applies in `lynk-build` (never leave a leftover after a migration or move) and `lynk-evaluate`. Tag findings `local/content-rules-15`.
+
+---
+
+## 16. State and dimension fields must be temporally correct — as-of vs. current
+
+When a table denormalizes an attribute that changes over time (segment, status, owner, tier, price), each such field reflects a *specific point in time* — the value as of the event, or the value *now* — and the two are different data. A field description must say which, and any skill, metric, or filter must use the temporally correct one. Grouping a historical trend by a *current* status silently answers a different question than the one asked, and it compiles fine (`references/docs/guides/metrics-time-and-state.md` — model state at the grain where it is true).
+
+Flag: a time-varying dimension field whose description doesn't state its temporal anchor; two fields for the same attribute (an as-of-event one and a current one) used interchangeably; a skill or metric that filters or groups a time-of-event question by a "current" field (or the reverse). This is distinct from Rule 13 (aggregating a *measure* across time) — here it is picking the wrong temporal *version of a dimension*. **Severity:** `warning`, or `needs-client-input` when which snapshot is intended is a business call. Applies in `lynk-build` and `lynk-evaluate`. Tag findings `local/content-rules-16`.
+
+---
+
+## 17. No stale data constants baked into prose
+
+Prose (`LYNK.md`, `ENTITY.md`, glossary, skills, policies) must not assert concrete, queryable data values or rankings as fixed constants — a per-entity attribute pinned as "X = 97, Y = 87", a "top 3 are …", a threshold like "≥ 1.5%". Those values live in the warehouse and drift; a frozen prose copy misleads every question that trusts it, and a self-dated one ("as of May 2026") announces its own decay (`references/docs/guides/where-knowledge-goes.md` — a queryable value belongs in `schema.yml`, not prose). This extends Rule 10 (formulas / SQL in prose) to *data values and business thresholds*.
+
+Flag a prose statement that pins a value which exists in the data; the fix is to move it to a feature or metric the prose points at, or to state it as a queryable attribute rather than a fixed number. **Scope carefully:** a genuine capability caveat ("as of now there is no way to identify courtesy credits") is legitimate prose, not a stale constant — the check is for values that *exist in the data* and will change. **Severity:** `warning`. Applies in `lynk-build` and `lynk-evaluate`. Tag findings `local/content-rules-17`.
+
+---
+
+## 18. Required project settings — `lynk.yml` must declare the week-start
+
+`lynk.yml` must declare `localization.start_of_week_day` (e.g. `monday`, `thursday`) — the anchor every week-bucketed number resolves against (`DATE_TRUNC('week', …)` and weekly rollups). It is **mandatory**, and it is structured config, so it lives in `lynk.yml`, **not** as prose in `LYNK.md`:
+
+```yaml
+# .lynk/lynk.yml
+localization:
+  start_of_week_day: thursday
+```
+
+**In `lynk-build`** — when setting up or first touching a layer, ensure it's declared; if absent, ask the user via `AskUserQuestion` before proceeding. There is no safe default — the wrong anchor silently shifts every weekly figure.
+
+**In `lynk-evaluate`** — check `lynk.yml` declares it; if missing, flag **`needs-client-input`**.
+
+*The current `lynk-yml.md` spec doesn't yet document the `localization` block; this rule reflects the live product requirement — reconcile the docs when they catch up.* Tag findings `local/content-rules-18`.
 
 ---
 
@@ -249,5 +335,12 @@ For each file you touched (build) or read (evaluate), ask:
 8. **Domain coherent?** — Does everything in this domain serve this team's agent; is shared content promoted rather than cloned (Rule 9)?
 9. **No computation in prose?** — Do glossary descriptions, `LYNK.md`, `ENTITY.md`, skills, and policies point at schema definitions rather than carrying formulas or raw SQL (Rule 10)?
 10. **Keys real?** — Does every standalone entity's `keys:` actually identify a row — catalog-reported or verified unique — rather than a fabricated non-unique column (Rule 11)?
+11. **Ratios right?** — Does every ratio / rate / percentage metric divide a summed numerator by a summed denominator, never average per-row ratios (Rule 12)?
+12. **Additive only where valid?** — Is every balance / level / snapshot measure reduced to a point in time before it is aggregated across time, never plain-summed (Rule 13)?
+13. **Budgeted?** — Does every always-loaded / on-activation surface carry only what its whole audience needs (depth pushed to JIT files), is the glossary free of common-knowledge terms, and do examples teach rather than pad (Rule 14)?
+14. **All content live?** — Is every file a valid v2 artifact in a reachable location, with no legacy-format or orphaned-duplicate leftovers (Rule 15)?
+15. **Temporally correct?** — Does every time-varying dimension field state its as-of-vs-current anchor, and do skills/metrics use the right one (Rule 16)?
+16. **No stale prose constants?** — Is every queryable data value / ranking / threshold in schema, not frozen into prose (Rule 17)?
+17. **Week anchor set?** — Does `lynk.yml` declare `localization.start_of_week_day` (Rule 18)?
 
 If the answer to any of these is "no" or "I'm not sure," the work isn't done.
